@@ -30,7 +30,9 @@ final readonly class VerificationKey
     /**
      * Per curve: the JWS algorithm a token signed by it declares, the field
      * prime and the two coefficients of `y^2 = x^3 + ax + b`, and the two
-     * SubjectPublicKeyInfo headers that can precede its point.
+     * SubjectPublicKeyInfo headers that can precede its point. `g` is the
+     * curve's generator, compressed: a point known to be valid, for
+     * {@see self::opensslReadsCompressedKeys()} to ask OpenSSL about.
      *
      * Each header is a constant because every field ahead of the point is one
      * -- `SEQUENCE { SEQUENCE { OID ecPublicKey, OID namedCurve },
@@ -44,6 +46,7 @@ final readonly class VerificationKey
             'p' => 'fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f',
             'a' => '0',
             'b' => '7',
+            'g' => '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
             // ... OID 1.2.840.10045.2.1 ecPublicKey, OID 1.3.132.0.10 secp256k1
             'compressed' => '3036301006072a8648ce3d020106052b8104000a032200',
             'uncompressed' => '3056301006072a8648ce3d020106052b8104000a034200',
@@ -53,6 +56,7 @@ final readonly class VerificationKey
             'p' => 'ffffffff00000001000000000000000000000000ffffffffffffffffffffffff',
             'a' => 'ffffffff00000001000000000000000000000000fffffffffffffffffffffffc',
             'b' => '5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b',
+            'g' => '036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296',
             // ... OID 1.2.840.10045.2.1 ecPublicKey, OID 1.2.840.10045.3.1.7 prime256v1
             'compressed' => '3039301306072a8648ce3d020106082a8648ce3d030107032200',
             'uncompressed' => '3059301306072a8648ce3d020106082a8648ce3d030107034200',
@@ -63,9 +67,18 @@ final readonly class VerificationKey
 
     private const string UNCOMPRESSED_MARKER = "\x04";
 
+    private string $x;
+
+    private string $y;
+
     /**
      * @param string $curve one of the self::CURVE_* constants
      * @param string $compressedPoint 33 bytes: a 0x02/0x03 parity prefix and X
+     *
+     * @throws IdentityException if the point is not one on the curve, so a
+     *                           key that exists is a key that can be used
+     *
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\VerificationKeyTest::testRejectsAnXThatIsNotOnTheCurve()
      */
     public function __construct(
         public string $curve,
@@ -74,6 +87,8 @@ final readonly class VerificationKey
         if (!isset(self::CURVES[$this->curve])) {
             throw new IdentityException("Unsupported curve {$this->curve}");
         }
+
+        [$this->x, $this->y] = $this->uncompressed();
     }
 
     /**
@@ -97,9 +112,7 @@ final readonly class VerificationKey
      */
     public function der(): string
     {
-        [$x, $y] = $this->uncompressed();
-
-        return self::header($this->curve, 'uncompressed') . self::UNCOMPRESSED_MARKER . $x . $y;
+        return self::header($this->curve, 'uncompressed') . self::UNCOMPRESSED_MARKER . $this->x . $this->y;
     }
 
     /**
@@ -117,6 +130,10 @@ final readonly class VerificationKey
      * where brick/math drops to a pure-PHP calculator. Stock php:cli images
      * have neither, and .github/workflows/ci.yml has a `no-bignum-extensions`
      * job that builds exactly that.
+     *
+     * Only a build that refuses falls through, though. One that reads compressed keys and refused this
+     * one has said the point is invalid, and the PHP path would spend that
+     * 1.5 seconds agreeing: anybody can publish an X that is not on the curve.
      *
      * No test pins this order, and one cannot: the two paths agree by design,
      * so there is no output to assert on, and the difference between them is
@@ -142,16 +159,30 @@ final readonly class VerificationKey
             throw new IdentityException(\sprintf('Unexpected point prefix 0x%02x', $prefix));
         }
 
-        return self::viaOpenssl($this->curve, $this->compressedPoint)
-            ?? self::viaModularSquareRoot($this->curve, $prefix, $xBytes);
+        $point = self::viaOpenssl($this->curve, $this->compressedPoint);
+
+        if ($point === null && self::opensslReadsCompressedKeys($this->curve)) {
+            throw new IdentityException("Compressed point is not a valid point on {$this->curve}");
+        }
+
+        return $point ?? self::viaModularSquareRoot($this->curve, $prefix, $xBytes);
+    }
+
+    /**
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\VerificationKeyTest::testAnInvalidPointIsRejectedWithoutReachingTheFallback()
+     */
+    private static function opensslReadsCompressedKeys(string $curve): bool
+    {
+        $generator = hex2bin(self::CURVES[$curve]['g']);
+
+        return $generator !== false && self::viaOpenssl($curve, $generator) !== null;
     }
 
     /**
      * Null when this OpenSSL will not read the key, for either reason: the
      * build does not accept a compressed SubjectPublicKeyInfo, or the point
-     * is not a valid one. Both fall through to
-     * {@see self::viaModularSquareRoot()}, which distinguishes them -- an
-     * invalid point fails its on-curve check there and is rejected.
+     * is not a valid one. {@see self::opensslReadsCompressedKeys()} tells
+     * them apart.
      *
      * Leaves OpenSSL's error queue empty either way. The queue is global to
      * the process and appended to, so a key refused here puts entries on it
@@ -213,9 +244,8 @@ final readonly class VerificationKey
      *
      * Both curves have p = 3 (mod 4), where a square root -- if one exists at
      * all -- is alpha^((p+1)/4). Squaring the result back is what proves X was
-     * ever on the curve, and is therefore also the rejection path for a point
-     * OpenSSL declined because it was invalid rather than because it was
-     * compressed.
+     * ever on the curve, which on a build that reaches here is the only
+     * on-curve check there is.
      *
      * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\VerificationKeyTest::testTheFallbackAgreesWithOpenssl()
      *

@@ -27,6 +27,7 @@ final class SigningKeys
      * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\SigningKeysTest::testReturnsEveryAtprotoKeyInTheOrderTheyArePublished()
      * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\SigningKeysTest::testReturnsNothingWhenTheDocumentPublishesNoAtprotoKey()
      * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\SigningKeysTest::testSkipsAnUnreadableKeyBesideAReadableOne()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\SigningKeysTest::testSkipsAKeyThatIsNotOnItsCurveBesideOneThatIs()
      */
     public static function atproto(array $document): array
     {

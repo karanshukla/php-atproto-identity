@@ -20,6 +20,9 @@ final class SigningKeysTest extends TestCase
 
     private const string ED25519_KEY = 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';
 
+    /** secp256k1's prefix over x = 5, which has no square root on the curve. */
+    private const string OFF_CURVE_KEY = 'zQ3shMQnkqiyfujhRPGFFqSEeD2yV9kUcmyBiu2fT2BXfFPMN';
+
     public function testReadsTheAtprotoKeyADocumentPublishes(): void
     {
         $testKey = TestKey::secp256k1();
@@ -101,6 +104,24 @@ final class SigningKeysTest extends TestCase
 
         $keys = SigningKeys::atproto(self::document([
             ['id' => self::DID . '#atproto', 'publicKeyMultibase' => self::ED25519_KEY],
+            ['id' => self::DID . '#atproto', 'publicKeyMultibase' => $testKey->multibase],
+        ]));
+
+        self::assertCount(1, $keys);
+        self::assertEquals($testKey->verificationKey(), $keys[0]);
+    }
+
+    /**
+     * Well formed and the right length, so only the curve can refuse it. A
+     * caller looping over the result must not meet it as a throw from pem()
+     * on the way to the key that works.
+     */
+    public function testSkipsAKeyThatIsNotOnItsCurveBesideOneThatIs(): void
+    {
+        $testKey = TestKey::secp256k1();
+
+        $keys = SigningKeys::atproto(self::document([
+            ['id' => self::DID . '#atproto', 'publicKeyMultibase' => self::OFF_CURVE_KEY],
             ['id' => self::DID . '#atproto', 'publicKeyMultibase' => $testKey->multibase],
         ]));
 

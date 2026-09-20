@@ -90,6 +90,11 @@ final class DidDocumentUrlTest extends TestCase
         yield 'a plc identifier with a path in it' => ['did:plc:requester/../../admin'];
 
         yield 'a plc identifier with a host in it' => ['did:plc:requester%40evil.test'];
+
+        // `$` alone matches ahead of a final newline, so these pass without /D.
+        yield 'a host with a newline after it' => ['did:web:feed.test%0A'];
+
+        yield 'a plc identifier with a newline after it' => ["did:plc:requester\n"];
     }
 
     /**

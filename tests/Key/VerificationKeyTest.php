@@ -68,21 +68,41 @@ final class VerificationKeyTest extends TestCase
     }
 
     /**
-     * A point OpenSSL declines because it is invalid, rather than because it
-     * is compressed, still has to be rejected once it reaches the fallback.
+     * The fallback is the only on-curve check on a build that reaches it.
      */
     public function testAnInvalidPointIsRejectedByTheFallbackToo(): void
     {
-        $key = new VerificationKey(
-            VerificationKey::CURVE_SECP256K1,
-            "\x02" . str_pad(pack('N', 5), 32, "\x00", \STR_PAD_LEFT),
-        );
-
         $this->expectException(IdentityException::class);
         $this->expectExceptionMessage('does not lie on secp256k1');
 
-        new ReflectionMethod($key, 'viaModularSquareRoot')
-            ->invoke(null, $key->curve, 0x02, substr($key->compressedPoint, 1));
+        new ReflectionMethod(VerificationKey::class, 'viaModularSquareRoot')
+            ->invoke(null, VerificationKey::CURVE_SECP256K1, 0x02, self::x(5));
+    }
+
+    /**
+     * Anybody can publish an X that is not on the curve, and the fallback
+     * takes over a second to say so on a build with no bignum extension. The
+     * message is OpenSSL's verdict rather than the fallback's, which is the
+     * one observable difference between the two that is not a duration.
+     *
+     * @param non-empty-string $x
+     */
+    #[DataProvider('provideAnInvalidPointIsRejectedWithoutReachingTheFallbackCases')]
+    public function testAnInvalidPointIsRejectedWithoutReachingTheFallback(string $curve, string $x): void
+    {
+        $this->expectException(IdentityException::class);
+        $this->expectExceptionMessage("is not a valid point on {$curve}");
+
+        new VerificationKey($curve, "\x02" . $x);
+    }
+
+    /**
+     * @return iterable<string, array{string, non-empty-string}>
+     */
+    public static function provideAnInvalidPointIsRejectedWithoutReachingTheFallbackCases(): iterable
+    {
+        yield 'secp256k1' => [VerificationKey::CURVE_SECP256K1, self::x(5)];
+        yield 'p256' => [VerificationKey::CURVE_P256, self::x(1)];
     }
 
     /**
@@ -123,15 +143,15 @@ final class VerificationKeyTest extends TestCase
         new VerificationKey(VerificationKey::CURVE_SECP256K1, "\x04" . str_repeat("\x00", 32))->pem();
     }
 
-    /** x = 5 has no square root on secp256k1. */
+    /**
+     * x = 5 has no square root on secp256k1. Refused on the way in rather
+     * than from pem(), so a key that exists is a key that can be used.
+     */
     public function testRejectsAnXThatIsNotOnTheCurve(): void
     {
         $this->expectException(IdentityException::class);
 
-        new VerificationKey(
-            VerificationKey::CURVE_SECP256K1,
-            "\x02" . str_pad(pack('N', 5), 32, "\x00", \STR_PAD_LEFT),
-        )->pem();
+        new VerificationKey(VerificationKey::CURVE_SECP256K1, "\x02" . self::x(5));
     }
 
     /**
@@ -178,6 +198,14 @@ final class VerificationKeyTest extends TestCase
         TestKey::secp256k1()->verificationKey()->pem();
 
         self::assertSame(0, self::drainOpensslErrors());
+    }
+
+    /**
+     * @return non-empty-string
+     */
+    private static function x(int $value): string
+    {
+        return str_pad(pack('N', $value), 32, "\x00", \STR_PAD_LEFT);
     }
 
     /**
