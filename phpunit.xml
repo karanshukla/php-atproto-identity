@@ -5,6 +5,7 @@
          colors="true"
          failOnWarning="true"
          failOnRisky="true"
+         failOnDeprecation="true"
          beStrictAboutOutputDuringTests="true"
          defaultTestSuite="unit">
     <testsuites>

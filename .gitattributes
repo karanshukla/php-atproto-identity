@@ -1,1 +1,15 @@
 * text=auto eol=lf
+
+# Packagist installs from a git archive, so anything marked here is not
+# downloaded by `composer require`. A consumer wants src/, the README and the
+# licence; the rest is how the package is built, not what it does.
+/.github            export-ignore
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
+/.php-cs-fixer.php  export-ignore
+/.remember          export-ignore
+/CODEOWNERS         export-ignore
+/CONTRIBUTING.md    export-ignore
+/phpstan.neon       export-ignore
+/phpunit.xml        export-ignore
+/tests              export-ignore
