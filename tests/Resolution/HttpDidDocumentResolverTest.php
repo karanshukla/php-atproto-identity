@@ -87,7 +87,6 @@ final class HttpDidDocumentResolverTest extends TestCase
         self::resolver($http)->resolve(self::DID);
     }
 
-    /** A JSON array decodes to a PHP array, which is_array() alone allows. */
     public function testRejectsABodyThatIsAJsonArray(): void
     {
         $http = new StubHttpClient([StubHttpClient::json('[{"id":"' . self::DID . '"}]')]);
@@ -98,12 +97,6 @@ final class HttpDidDocumentResolverTest extends TestCase
         self::resolver($http)->resolve(self::DID);
     }
 
-    /**
-     * A did:web is served by the host the DID names, so without this check
-     * any host can publish a document claiming to be any other DID, and a
-     * caller reading a key out of it would verify that DID's tokens against a
-     * key its owner never published.
-     */
     public function testRefusesADocumentClaimingADifferentDid(): void
     {
         $http = new StubHttpClient([StubHttpClient::json(self::body(self::DID, 'impersonated'))]);
@@ -112,6 +105,16 @@ final class HttpDidDocumentResolverTest extends TestCase
         $this->expectExceptionMessage('claims to be ' . self::DID);
 
         self::resolver($http)->resolve('did:web:evil.test');
+    }
+
+    public function testRefusesADocumentWhoseIdDiffersOnlyInCase(): void
+    {
+        $http = new StubHttpClient([StubHttpClient::json(self::body('did:web:FEED.test', 'fetched'))]);
+
+        $this->expectException(IdentityException::class);
+        $this->expectExceptionMessage('claims to be did:web:FEED.test');
+
+        self::resolver($http)->resolve(self::WEB_DID);
     }
 
     public function testRefusesADocumentWithNoIdAtAll(): void
@@ -217,11 +220,6 @@ final class HttpDidDocumentResolverTest extends TestCase
         }
     }
 
-    /**
-     * An entry with no port means 443. Otherwise listing a host would hand a
-     * DID every other port on that machine, which is the thing the list was
-     * set to prevent.
-     */
     public function testRefusesAnAllowedHostOnAPortThatWasNotListed(): void
     {
         $http = new StubHttpClient([]);
@@ -243,11 +241,6 @@ final class HttpDidDocumentResolverTest extends TestCase
     }
 
     /**
-     * With no list set, a did:web has to name a domain somebody registered.
-     * Not because these bend the URL (they do not) but because this package
-     * takes whatever PSR-18 client it is handed, and a stock one will dial
-     * any of them.
-     *
      * @param non-empty-string $did
      */
     #[DataProvider('provideRefusesAHostThatIsNotAPublicDomainCases')]
@@ -280,11 +273,6 @@ final class HttpDidDocumentResolverTest extends TestCase
         yield 'a numeric tld' => ['did:web:feed.123'];
     }
 
-    /**
-     * The escape hatch, and the reason the rule above is a default rather
-     * than a prohibition. @atproto/identity goes further and special-cases
-     * localhost to http; this only asks that you say so.
-     */
     public function testFetchesFromALocalHostThatWasNamedOnTheAllowList(): void
     {
         $did = 'did:web:localhost%3A3000';
@@ -295,7 +283,6 @@ final class HttpDidDocumentResolverTest extends TestCase
         self::assertSame(['https://localhost:3000/.well-known/did.json'], $http->urls);
     }
 
-    /** A development PLC directory is a real thing to point at. */
     public function testReachesAPlcDirectoryThatIsNotAPublicDomain(): void
     {
         $http = new StubHttpClient([StubHttpClient::json(self::body(self::DID, 'fetched'))]);
@@ -309,11 +296,6 @@ final class HttpDidDocumentResolverTest extends TestCase
         self::assertSame(['http://localhost:2582/' . self::DID], $http->urls);
     }
 
-    /**
-     * Otherwise setting the list at all would break did:plc, and the
-     * directory is the caller's own configuration rather than a host any DID
-     * picked out.
-     */
     public function testStillReachesTheConfiguredPlcDirectoryWithoutListingIt(): void
     {
         $http = new StubHttpClient([StubHttpClient::json(self::body(self::DID, 'fetched'))]);
@@ -323,11 +305,6 @@ final class HttpDidDocumentResolverTest extends TestCase
         self::assertSame(['https://plc.directory/' . self::DID], $http->urls);
     }
 
-    /**
-     * A refused host is refused whether or not there is something cached for
-     * it. Validation used to sit inside the same try as the fetch, so a
-     * refusal read as an outage and the stale document was served instead.
-     */
     public function testDoesNotServeARefusedHostFromTheCache(): void
     {
         $cache = new StubDidDocumentCache();

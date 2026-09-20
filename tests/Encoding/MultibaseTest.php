@@ -6,6 +6,7 @@ namespace KaranShukla\PhpAtprotoIdentity\Tests\Encoding;
 
 use KaranShukla\PhpAtprotoIdentity\Encoding\Multibase;
 use KaranShukla\PhpAtprotoIdentity\IdentityException;
+use KaranShukla\PhpAtprotoIdentity\Tests\Stub\TestKey;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -13,6 +14,10 @@ use PHPUnit\Framework\TestCase;
  */
 final class MultibaseTest extends TestCase
 {
+    private const string BASE58BTC_ZERO_DIGIT = '1';
+
+    private const int HEADROOM_OVER_A_REAL_KEY = 8;
+
     public function testStripsThePrefixAndDecodesWhatIsBehindIt(): void
     {
         self::assertSame('yes mani !', Multibase::decode('z7paNL19xttacUY'));
@@ -20,11 +25,11 @@ final class MultibaseTest extends TestCase
 
     public function testRejectsABaseOtherThanBase58btc(): void
     {
+        $sameBytesInBase64url = 'ueWVzIG1hbmkgIQ';
+
         $this->expectException(IdentityException::class);
 
-        // The same bytes in base64url (multibase `u`), which is a real
-        // encoding but not the one ATProto publishes keys in.
-        Multibase::decode('ueWVzIG1hbmkgIQ');
+        Multibase::decode($sameBytesInBase64url);
     }
 
     public function testRejectsAStringWithNoPrefixAtAll(): void
@@ -34,13 +39,6 @@ final class MultibaseTest extends TestCase
         Multibase::decode('7paNL19xttacUY');
     }
 
-    /**
-     * base58 decoding is quadratic, and without ext-gmp it is quadratic in
-     * PHP: 20,000 characters is five seconds of CPU. The string arrives
-     * inside a DID document, so on a did:web its length belongs to whoever
-     * the DID names, and the only thing standing between them and that five
-     * seconds is this bound.
-     */
     public function testRefusesAStringTooLongToBeAKey(): void
     {
         $this->expectException(IdentityException::class);
@@ -49,12 +47,24 @@ final class MultibaseTest extends TestCase
         Multibase::decode('z' . str_repeat('z', Multibase::MAX_LENGTH));
     }
 
-    /** A real key is 49 characters, so the bound has room to spare. */
     public function testAcceptsAStringRightUpToTheBound(): void
     {
-        // `1` is base58btc's zero digit, so this is a run of zero bytes.
-        $decoded = Multibase::decode('z' . str_repeat('1', Multibase::MAX_LENGTH - 1));
+        $zeroDigits = str_repeat(self::BASE58BTC_ZERO_DIGIT, Multibase::MAX_LENGTH - 1);
 
-        self::assertSame(str_repeat("\x00", Multibase::MAX_LENGTH - 1), $decoded);
+        self::assertSame(
+            str_repeat("\x00", Multibase::MAX_LENGTH - 1),
+            Multibase::decode('z' . $zeroDigits),
+        );
+    }
+
+    public function testKeepsTheBoundWithinHeadroomOfARealKey(): void
+    {
+        $realKey = TestKey::secp256k1()->multibase;
+
+        self::assertLessThanOrEqual(
+            \strlen($realKey) * self::HEADROOM_OVER_A_REAL_KEY,
+            Multibase::MAX_LENGTH,
+            'base58 decoding is quadratic without ext-gmp, so a bound far above a real key is not a bound',
+        );
     }
 }

@@ -18,6 +18,8 @@ final class SigningKeysTest extends TestCase
 
     private const string OTHER_DID = 'did:plc:somebodyelse';
 
+    private const string ED25519_KEY = 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';
+
     public function testReadsTheAtprotoKeyADocumentPublishes(): void
     {
         $testKey = TestKey::secp256k1();
@@ -28,7 +30,6 @@ final class SigningKeysTest extends TestCase
         self::assertEquals($testKey->verificationKey(), $keys[0]);
     }
 
-    /** DID Core lets a method id be written relative to the document. */
     public function testAcceptsAMethodIdWrittenAsABareFragment(): void
     {
         $testKey = TestKey::secp256k1();
@@ -40,10 +41,6 @@ final class SigningKeysTest extends TestCase
         self::assertCount(1, $keys);
     }
 
-    /**
-     * The check this class exists for. `str_ends_with($id, '#atproto')` is
-     * the obvious thing to write and it accepts this.
-     */
     public function testIgnoresAnAtprotoMethodBelongingToAnotherDid(): void
     {
         $keys = SigningKeys::atproto(self::document([
@@ -57,7 +54,6 @@ final class SigningKeysTest extends TestCase
         self::assertSame([], $keys);
     }
 
-    /** A method id can be the subject's while the controller is not. */
     public function testIgnoresAMethodControlledBySomebodyElse(): void
     {
         $keys = SigningKeys::atproto(self::document([
@@ -71,10 +67,6 @@ final class SigningKeysTest extends TestCase
         self::assertSame([], $keys);
     }
 
-    /**
-     * A did:plc document publishes a rotation key too, and it signs
-     * operations on the identity rather than anything in the repo.
-     */
     public function testIgnoresAMethodThatIsNotTheAtprotoOne(): void
     {
         $keys = SigningKeys::atproto(self::document([
@@ -88,10 +80,6 @@ final class SigningKeysTest extends TestCase
         self::assertSame([], $keys);
     }
 
-    /**
-     * During a rotation the key that verifies a given signature may not be
-     * the one listed first, so all of them come back in order.
-     */
     public function testReturnsEveryAtprotoKeyInTheOrderTheyArePublished(): void
     {
         $first = TestKey::secp256k1();
@@ -107,17 +95,12 @@ final class SigningKeysTest extends TestCase
         self::assertEquals($second->verificationKey(), $keys[1]);
     }
 
-    /**
-     * A key type this package cannot read does not cost the caller one it
-     * can, which is the whole point of not failing the batch.
-     */
     public function testSkipsAnUnreadableKeyBesideAReadableOne(): void
     {
         $testKey = TestKey::secp256k1();
 
         $keys = SigningKeys::atproto(self::document([
-            // Ed25519, a real key type but not one ATProto signs repos with.
-            ['id' => self::DID . '#atproto', 'publicKeyMultibase' => 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK'],
+            ['id' => self::DID . '#atproto', 'publicKeyMultibase' => self::ED25519_KEY],
             ['id' => self::DID . '#atproto', 'publicKeyMultibase' => $testKey->multibase],
         ]));
 
@@ -125,7 +108,6 @@ final class SigningKeysTest extends TestCase
         self::assertEquals($testKey->verificationKey(), $keys[0]);
     }
 
-    /** With nothing readable left, silence would be the dangerous answer. */
     public function testThrowsWhenEveryAtprotoKeyIsUnreadable(): void
     {
         $this->expectException(IdentityException::class);
@@ -146,17 +128,12 @@ final class SigningKeysTest extends TestCase
         ]));
     }
 
-    /**
-     * Empty rather than an exception: a caller loops over the result and
-     * rejects by never finding a key that verifies.
-     */
     public function testReturnsNothingWhenTheDocumentPublishesNoAtprotoKey(): void
     {
         self::assertSame([], SigningKeys::atproto(self::document([])));
         self::assertSame([], SigningKeys::atproto(['id' => self::DID]));
     }
 
-    /** DID Core lets an entry refer to a method defined elsewhere. */
     public function testPassesOverAnEntryThatIsAReferenceRatherThanAMethod(): void
     {
         $keys = SigningKeys::atproto(self::document([
