@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity;
+namespace KaranShukla\PhpAtprotoIdentity\Resolution;
+
+use KaranShukla\PhpAtprotoIdentity\IdentityException;
 
 interface DidDocumentResolver
 {

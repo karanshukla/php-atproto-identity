@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity;
+namespace KaranShukla\PhpAtprotoIdentity\Resolution\Cache;
 
 /**
  * Storage for resolved DID documents.
  *
- * Not PSR-6 or PSR-16: both report validity, and {@see HttpDidDocumentResolver}
+ * Not PSR-6 or PSR-16: both report validity, and
+ * {@see \KaranShukla\PhpAtprotoIdentity\Resolution\HttpDidDocumentResolver}
  * needs age. {@see Psr6DidDocumentCache} adapts a pool to it.
  */
 interface DidDocumentCache

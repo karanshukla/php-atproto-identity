@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity\Tests;
+namespace KaranShukla\PhpAtprotoIdentity\Tests\Key;
 
 use Brick\Math\BigInteger;
-use KaranShukla\PhpAtprotoIdentity\DidKey;
 use KaranShukla\PhpAtprotoIdentity\IdentityException;
+use KaranShukla\PhpAtprotoIdentity\Key\DidKey;
+use KaranShukla\PhpAtprotoIdentity\Key\VerificationKey;
 use KaranShukla\PhpAtprotoIdentity\Tests\Stub\TestKey;
-use KaranShukla\PhpAtprotoIdentity\VerificationKey;
 use PHPUnit\Framework\TestCase;
 
 /**

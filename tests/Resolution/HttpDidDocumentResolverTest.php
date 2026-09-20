@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity\Tests;
+namespace KaranShukla\PhpAtprotoIdentity\Tests\Resolution;
 
 use GuzzleHttp\Psr7\HttpFactory;
-use KaranShukla\PhpAtprotoIdentity\HttpDidDocumentResolver;
 use KaranShukla\PhpAtprotoIdentity\IdentityException;
+use KaranShukla\PhpAtprotoIdentity\Resolution\HttpDidDocumentResolver;
 use KaranShukla\PhpAtprotoIdentity\Tests\Stub\StubDidDocumentCache;
 use KaranShukla\PhpAtprotoIdentity\Tests\Stub\StubHttpClient;
 use PHPUnit\Framework\TestCase;
@@ -142,14 +142,55 @@ final class HttpDidDocumentResolverTest extends TestCase
         self::resolver($http, $cache)->resolve(self::DID);
     }
 
+    public function testFetchesFromAHostOnTheAllowList(): void
+    {
+        $http = new StubHttpClient([StubHttpClient::json('{"id":"did:web:feed.test"}')]);
+
+        self::resolver($http, allowedHosts: ['FEED.test'])->resolve('did:web:feed.test');
+
+        self::assertSame(['https://feed.test/.well-known/did.json'], $http->urls);
+    }
+
+    public function testRefusesAHostThatIsNotOnTheAllowList(): void
+    {
+        $http = new StubHttpClient([StubHttpClient::json('{"id":"did:web:evil.test"}')]);
+
+        $this->expectException(IdentityException::class);
+
+        try {
+            self::resolver($http, allowedHosts: ['feed.test'])->resolve('did:web:evil.test');
+        } finally {
+            self::assertSame([], $http->urls, 'the request must not be sent at all');
+        }
+    }
+
+    /**
+     * Otherwise setting the list at all would break did:plc, and the
+     * directory is the caller's own configuration rather than a host any DID
+     * picked out.
+     */
+    public function testStillReachesTheConfiguredPlcDirectoryWithoutListingIt(): void
+    {
+        $http = new StubHttpClient([StubHttpClient::json('{"id":"' . self::DID . '"}')]);
+
+        self::resolver($http, allowedHosts: ['feed.test'])->resolve(self::DID);
+
+        self::assertSame(['https://plc.directory/' . self::DID], $http->urls);
+    }
+
+    /**
+     * @param list<string> $allowedHosts
+     */
     private static function resolver(
         ClientInterface $http,
         ?StubDidDocumentCache $cache = null,
+        array $allowedHosts = [],
     ): HttpDidDocumentResolver {
         return new HttpDidDocumentResolver(
             httpClient: $http,
             requestFactory: new HttpFactory(),
             cache: $cache ?? new StubDidDocumentCache(),
+            allowedHosts: $allowedHosts,
         );
     }
 }

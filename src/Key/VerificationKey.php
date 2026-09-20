@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity;
+namespace KaranShukla\PhpAtprotoIdentity\Key;
 
 use Brick\Math\BigInteger;
 use Brick\Math\Exception\MathException;
+use KaranShukla\PhpAtprotoIdentity\IdentityException;
 
 /**
  * An elliptic-curve public key recovered from a DID document, in a form
@@ -18,7 +19,7 @@ use Brick\Math\Exception\MathException;
  * {@see self::uncompressed()} for where that happens and why there are two
  * ways of doing it.
  *
- * @see \KaranShukla\PhpAtprotoIdentity\Tests\VerificationKeyTest
+ * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\VerificationKeyTest
  */
 final readonly class VerificationKey
 {
@@ -92,7 +93,7 @@ final readonly class VerificationKey
      * The key as a DER-encoded SubjectPublicKeyInfo over an uncompressed
      * point, which is the form every EC verifier understands.
      *
-     * @see \KaranShukla\PhpAtprotoIdentity\Tests\VerificationKeyTest::testDerivesTheSameKeyOpensslWould()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\VerificationKeyTest::testDerivesTheSameKeyOpensslWould()
      */
     public function der(): string
     {
@@ -188,7 +189,7 @@ final readonly class VerificationKey
      * OpenSSL declined because it was invalid rather than because it was
      * compressed.
      *
-     * @see \KaranShukla\PhpAtprotoIdentity\Tests\VerificationKeyTest::testTheFallbackAgreesWithOpenssl()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\VerificationKeyTest::testTheFallbackAgreesWithOpenssl()
      *
      * @param non-empty-string $xBytes
      *

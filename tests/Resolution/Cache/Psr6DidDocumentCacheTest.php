@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity\Tests;
+namespace KaranShukla\PhpAtprotoIdentity\Tests\Resolution\Cache;
 
-use KaranShukla\PhpAtprotoIdentity\Psr6DidDocumentCache;
+use KaranShukla\PhpAtprotoIdentity\Resolution\Cache\Psr6DidDocumentCache;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
 

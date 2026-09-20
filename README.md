@@ -28,8 +28,8 @@ build. Nothing else — no bignum extension, no configuration.
 ```php
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
-use KaranShukla\PhpAtprotoIdentity\HttpDidDocumentResolver;
-use KaranShukla\PhpAtprotoIdentity\Psr6DidDocumentCache;
+use KaranShukla\PhpAtprotoIdentity\Resolution\Cache\Psr6DidDocumentCache;
+use KaranShukla\PhpAtprotoIdentity\Resolution\HttpDidDocumentResolver;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 
 $resolver = new HttpDidDocumentResolver(
@@ -50,10 +50,41 @@ signature fails to verify and you suspect a rotated key.
 
 Without a cache argument, nothing is cached at all.
 
+## Resolving a DID you do not trust
+
+A DID that arrives from outside — a token's issuer, a record's subject —
+decides which URL this library fetches. A `did:web` identifier is held to a
+hostname with an optional port, so it cannot bend that URL somewhere else,
+and a `did:plc` identifier cannot escape the directory it is appended to. A
+hostname is still enough to aim a request at anything that resolves, though,
+including addresses inside your own network.
+
+If the DIDs you resolve come from a known set, name it:
+
+```php
+$resolver = new HttpDidDocumentResolver(
+    httpClient: $client,
+    requestFactory: $factory,
+    allowedHosts: ['feed.example.com', 'pds.example.com'],
+);
+```
+
+Nothing off that list is fetched, and the request is refused before it is
+sent. The PLC directory you configured is always reachable without being
+listed, so `did:plc` keeps working. An empty list — the default — allows any
+host.
+
+What an allowlist cannot bound is where a request *ends up*. Egress is the
+HTTP client's job, and the client is yours: for DIDs you have no reason to
+trust, hand this resolver a client with an egress proxy or a blocked
+private-address range rather than your default one, and turn
+redirect-following off — an allowed host is otherwise free to answer with a
+302 to a private one.
+
 ## Reading a published key
 
 ```php
-use KaranShukla\PhpAtprotoIdentity\DidKey;
+use KaranShukla\PhpAtprotoIdentity\Key\DidKey;
 
 $key = DidKey::fromMultibase($document['verificationMethod'][0]['publicKeyMultibase']);
 

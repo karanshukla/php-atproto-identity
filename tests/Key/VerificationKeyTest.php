@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity\Tests;
+namespace KaranShukla\PhpAtprotoIdentity\Tests\Key;
 
 use KaranShukla\PhpAtprotoIdentity\IdentityException;
+use KaranShukla\PhpAtprotoIdentity\Key\VerificationKey;
 use KaranShukla\PhpAtprotoIdentity\Tests\Stub\TestKey;
-use KaranShukla\PhpAtprotoIdentity\VerificationKey;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
