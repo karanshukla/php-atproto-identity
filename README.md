@@ -12,8 +12,7 @@ composer require karanshukla/php-atproto-identity
 ```
 
 Requires PHP 8.4 and `ext-openssl`, which ships enabled in virtually every PHP
-build. No bignum extension is needed — `ext-gmp` and `ext-bcmath` are both
-optional and the package is no slower without them.
+build. Nothing else — no bignum extension, no configuration.
 
 ## What it does
 
@@ -68,11 +67,11 @@ $key->der();        // the same key as a DER SubjectPublicKeyInfo
 
 ATProto publishes keys as a compressed point — an X coordinate and one bit of
 Y — so `pem()` has to recover Y by taking a modular square root in the curve's
-field. Rather than do that in PHP, it leans on the fact that RFC 5480 allows a
-`SubjectPublicKeyInfo` to carry a compressed point: the key goes to OpenSSL
-exactly as published and comes back decompressed, which keeps the square root
-in C and gets OpenSSL's on-curve validation for free. If X does not lie on the
-curve, that is where you find out.
+field. RFC 5480 allows a `SubjectPublicKeyInfo` to carry a compressed point, so
+the key is handed to OpenSSL exactly as published and comes back decompressed:
+the square root happens in C and the on-curve check comes free. A build whose
+OpenSSL declines falls back to the same arithmetic in PHP. Either way, a point
+that is not on the curve is rejected.
 
 ## Verifying a service auth token
 

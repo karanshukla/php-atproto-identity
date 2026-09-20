@@ -7,10 +7,12 @@ composer install
 composer qa        # php-cs-fixer, phpstan (level max), phpunit
 ```
 
-`ext-openssl` is required. `ext-gmp` and `ext-bcmath` are not — and the
-`No gmp or bcmath` CI job exists to keep it that way, so don't reach for a
-bignum operation on a hot path without checking what it costs on the pure-PHP
-fallback. It is roughly four orders of magnitude slower.
+`ext-openssl` is required. `ext-gmp` and `ext-bcmath` are not, and the
+`No gmp or bcmath` CI job exists to keep it that way. Before putting a
+`brick/math` operation anywhere it runs per request, check what it costs with
+neither extension loaded — a 256-bit `modPow` is about 1.5ms on GMP or BCMath
+and about 1.5 *seconds* on the pure-PHP calculator. That gap is the whole
+reason `VerificationKey` asks OpenSSL first.
 
 ## Before opening a PR
 

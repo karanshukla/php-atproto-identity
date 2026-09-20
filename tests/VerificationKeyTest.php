@@ -35,12 +35,53 @@ final class VerificationKeyTest extends TestCase
     }
 
     /**
+     * The PHP fallback only runs on a build whose OpenSSL refuses a compressed
+     * SubjectPublicKeyInfo, which is none of the ones this is tested on. Left
+     * to normal use it would be dead code, so it is called directly and held
+     * to the same answer OpenSSL gives.
+     */
+    #[DataProvider('provideBothCurvesCases')]
+    public function testTheFallbackAgreesWithOpenssl(TestKey $testKey): void
+    {
+        $key = $testKey->verificationKey();
+        $point = $key->compressedPoint;
+
+        $fallback = new \ReflectionMethod($key, 'viaModularSquareRoot')
+            ->invoke(null, $key->curve, \ord($point[0]), substr($point, 1));
+
+        $viaOpenssl = new \ReflectionMethod($key, 'viaOpenssl')
+            ->invoke(null, $key->curve, $point);
+
+        self::assertSame($viaOpenssl, $fallback);
+        // ...and therefore that OpenSSL did get used for the real answer.
+        self::assertSame($testKey->publicPem, $key->pem());
+    }
+
+    /**
      * @return iterable<string, array{TestKey}>
      */
     public static function provideBothCurvesCases(): iterable
     {
         yield 'secp256k1' => [TestKey::secp256k1()];
         yield 'p256' => [TestKey::p256()];
+    }
+
+    /**
+     * A point OpenSSL declines because it is invalid, rather than because it
+     * is compressed, still has to be rejected once it reaches the fallback.
+     */
+    public function testAnInvalidPointIsRejectedByTheFallbackToo(): void
+    {
+        $key = new VerificationKey(
+            VerificationKey::CURVE_SECP256K1,
+            "\x02" . str_pad(pack('N', 5), 32, "\x00", \STR_PAD_LEFT),
+        );
+
+        $this->expectException(IdentityException::class);
+        $this->expectExceptionMessage('does not lie on secp256k1');
+
+        new \ReflectionMethod($key, 'viaModularSquareRoot')
+            ->invoke(null, $key->curve, 0x02, substr($key->compressedPoint, 1));
     }
 
     /**
