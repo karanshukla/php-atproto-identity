@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: openssl, gmp, mbstring
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.json') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Check formatting
+        run: composer phpcsfixer
+
+      - name: Static analysis
+        run: composer phpstan
+
+      - name: Test
+        run: composer phpunit
+
+      # CodeQL has no PHP analyzer, so dependency advisories are the security
+      # gate here rather than static analysis of our own code.
+      - name: Audit dependencies
+        run: composer audit --no-interaction
+
+  # The package claims to need no bignum extension. brick/math silently falls
+  # back to a pure-PHP calculator when none is loaded, so that claim is only
+  # worth anything if it is actually exercised.
+  no-bignum-extensions:
+    name: No gmp or bcmath
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: openssl, :gmp, :bcmath
+          coverage: none
+
+      - name: Confirm neither extension is loaded
+        run: php -r "exit(extension_loaded('gmp') || extension_loaded('bcmath') ? 1 : 0);"
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Test
+        run: composer phpunit

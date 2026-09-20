@@ -1,0 +1,44 @@
+{
+    "name": "karanshukla/php-atproto-identity",
+    "description": "ATProto identity: DID document resolution and did:key verification keys",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["atproto", "bluesky", "did", "did-key", "did-plc", "did-web", "multibase"],
+    "autoload": {
+        "psr-4": {
+            "KaranShukla\\PhpAtprotoIdentity\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "KaranShukla\\PhpAtprotoIdentity\\Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Karan Shukla"
+        }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "ext-openssl": "*",
+        "brick/math": ">=0.12 <1.0",
+        "psr/cache": "^3.0",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.95",
+        "guzzlehttp/psr7": "^2.7",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.5",
+        "symfony/cache": ">=7.0 <9.0",
+        "symfony/var-dumper": ">=7.2"
+    },
+    "scripts": {
+        "qa": ["@phpcsfixer", "@phpstan", "@phpunit"],
+        "phpcsfixer": "php-cs-fixer fix --diff --dry-run --verbose --allow-risky=yes",
+        "phpstan": "phpstan analyse",
+        "phpunit": "phpunit"
+    }
+}

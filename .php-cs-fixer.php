@@ -1,0 +1,62 @@
+<?php
+
+declare(strict_types=1);
+
+$finder = Symfony\Component\Finder\Finder::create()
+    ->in([
+        __DIR__ . '/src',
+        __DIR__ . '/tests',
+    ])
+    ->name('*.php')
+    ->ignoreDotFiles(true)
+    ->ignoreVCS(true);
+
+return (new PhpCsFixer\Config())
+    ->setRules([
+        '@PSR12' => true,
+        'ordered_imports' => ['sort_algorithm' => 'alpha'],
+        'no_unused_imports' => true,
+        'trailing_comma_in_multiline' => true,
+        'phpdoc_scalar' => true,
+        'unary_operator_spaces' => true,
+        'binary_operator_spaces' => true,
+        'blank_line_before_statement' => [
+            'statements' => ['break', 'continue', 'declare', 'return', 'throw', 'try'],
+        ],
+        'phpdoc_single_line_var_spacing' => true,
+        'class_attributes_separation' => [
+            'elements' => [
+                'method' => 'one',
+            ],
+        ],
+        'method_argument_space' => [
+            'on_multiline' => 'ensure_fully_multiline',
+            'keep_multiple_spaces_after_comma' => true,
+        ],
+        'single_trait_insert_per_statement' => true,
+        '@PHP8x4Migration' => true,
+        '@PHP8x0Migration:risky' => true,
+        '@PHPUnit10x0Migration:risky' => true,
+        '@PhpCsFixer' => true,
+        '@PhpCsFixer:risky' => true,
+        '@Symfony' => true,
+        '@Symfony:risky' => true,
+        'array_syntax' => ['syntax' => 'short'],
+        'concat_space' => ['spacing' => 'one'],
+        'declare_strict_types' => true,
+        'yoda_style' => false,
+        'explicit_string_variable' => false,
+        'multiline_whitespace_before_semicolons' => false,
+        'increment_style' => false,
+        'phpdoc_align' => false,
+        'single_line_empty_body' => true,
+        'phpdoc_to_comment' => false,
+        'class_definition' => false,
+        'php_unit_test_class_requires_covers' => false,
+        'fully_qualified_strict_types' => false,
+        'php_unit_strict' => false,
+        'final_internal_class' => false,
+        'single_line_throw' => false,
+    ])
+    ->setFinder($finder)
+    ->setRiskyAllowed(true);
