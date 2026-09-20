@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity;
+namespace KaranShukla\PhpAtprotoIdentity\Resolution\Cache;
 
+use KaranShukla\PhpAtprotoIdentity\Resolution\HttpDidDocumentResolver;
 use Psr\Cache\CacheItemPoolInterface;
 
 /**
@@ -12,7 +13,7 @@ use Psr\Cache\CacheItemPoolInterface;
  * PSR-6 reports validity but not age, so the fetch time is stored alongside
  * the document and the item's own expiry is only the outer bound.
  *
- * @see \KaranShukla\PhpAtprotoIdentity\Tests\Psr6DidDocumentCacheTest
+ * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\Cache\Psr6DidDocumentCacheTest
  */
 final readonly class Psr6DidDocumentCache implements DidDocumentCache
 {
@@ -60,7 +61,7 @@ final readonly class Psr6DidDocumentCache implements DidDocumentCache
     /**
      * A DID contains characters PSR-6 reserves in a key, so it is hashed.
      *
-     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Psr6DidDocumentCacheTest::testKeepsDocumentsForDifferentDidsApart()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\Cache\Psr6DidDocumentCacheTest::testKeepsDocumentsForDifferentDidsApart()
      */
     private function key(string $did): string
     {

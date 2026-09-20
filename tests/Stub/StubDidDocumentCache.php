@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace KaranShukla\PhpAtprotoIdentity\Tests\Stub;
 
-use KaranShukla\PhpAtprotoIdentity\DidDocumentCache;
+use KaranShukla\PhpAtprotoIdentity\Resolution\Cache\DidDocumentCache;
 
 /**
  * An in-memory cache whose entries have a settable age, so a test can put a

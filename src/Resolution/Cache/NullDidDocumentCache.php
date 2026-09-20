@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity;
+namespace KaranShukla\PhpAtprotoIdentity\Resolution\Cache;
 
 final class NullDidDocumentCache implements DidDocumentCache
 {

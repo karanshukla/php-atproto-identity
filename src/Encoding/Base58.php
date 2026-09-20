@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity;
+namespace KaranShukla\PhpAtprotoIdentity\Encoding;
 
 use InvalidArgumentException;
+use KaranShukla\PhpAtprotoIdentity\IdentityException;
 use Tuupola\Base58 as Codec;
 
 /**
  * base58btc, the encoding multibase uses behind the `z` prefix.
  *
- * @see \KaranShukla\PhpAtprotoIdentity\Tests\Base58Test::testDecodesTheMultibaseSpecVectors()
+ * @see \KaranShukla\PhpAtprotoIdentity\Tests\Encoding\Base58Test::testDecodesTheMultibaseSpecVectors()
  */
 final class Base58
 {

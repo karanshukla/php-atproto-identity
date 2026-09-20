@@ -5,10 +5,15 @@
          colors="true"
          failOnWarning="true"
          failOnRisky="true"
-         beStrictAboutOutputDuringTests="true">
+         beStrictAboutOutputDuringTests="true"
+         defaultTestSuite="unit">
     <testsuites>
-        <testsuite name="default">
+        <testsuite name="unit">
             <directory>tests</directory>
+            <exclude>tests/Integration</exclude>
+        </testsuite>
+        <testsuite name="integration">
+            <directory>tests/Integration</directory>
         </testsuite>
     </testsuites>
     <source>

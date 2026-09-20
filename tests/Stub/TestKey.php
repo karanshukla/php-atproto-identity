@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace KaranShukla\PhpAtprotoIdentity\Tests\Stub;
 
 use Brick\Math\BigInteger;
-use KaranShukla\PhpAtprotoIdentity\DidKey;
-use KaranShukla\PhpAtprotoIdentity\VerificationKey;
+use KaranShukla\PhpAtprotoIdentity\Key\DidKey;
+use KaranShukla\PhpAtprotoIdentity\Key\VerificationKey;
 use OpenSSLAsymmetricKey;
 use RuntimeException;
 

@@ -81,3 +81,29 @@ jobs:
 
       - name: Test
         run: composer phpunit
+
+  # Hits the real PLC directory, so it is the one job that can fail for reasons
+  # that have nothing to do with the commit. It runs on main only and is not
+  # allowed to fail the build; treat a red mark here as "go look at the
+  # directory", not "the change is broken".
+  integration:
+    name: Live DID resolution
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: openssl, gmp, mbstring
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Test against the live network
+        run: composer phpunit-integration

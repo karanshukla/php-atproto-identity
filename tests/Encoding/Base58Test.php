@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace KaranShukla\PhpAtprotoIdentity\Tests;
+namespace KaranShukla\PhpAtprotoIdentity\Tests\Encoding;
 
-use KaranShukla\PhpAtprotoIdentity\Base58;
+use KaranShukla\PhpAtprotoIdentity\Encoding\Base58;
 use KaranShukla\PhpAtprotoIdentity\IdentityException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
