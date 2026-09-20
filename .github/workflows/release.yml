@@ -1,0 +1,61 @@
+# Cutting a release is pushing a tag. Everything else here is automatic: the
+# same QA that gates main runs again against the tagged commit, and if it is
+# green the release goes out with notes generated from the PRs merged since the
+# last tag. Categories for those notes live in .github/release.yml.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  # Reuses ci.yml rather than copying its steps, so the release gate and the
+  # main gate cannot drift apart.
+  qa:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Publish
+    needs: qa
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A tag on a branch that never merged would publish code main has not
+      # seen. Packagist reads tags, so that release would be real and
+      # immediately wrong.
+      - name: Confirm the tag is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at a commit that is not on main."
+            exit 1
+          fi
+
+      # v0.2.0 is a release; v0.2.0-beta.1 is not. Composer reads the suffix the
+      # same way, so the GitHub flag just matches what the version string
+      # already says.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          prerelease=""
+          if [[ "$TAG" == *-* ]]; then
+            prerelease="--prerelease"
+          fi
+
+          gh release create "$TAG" \
+            --verify-tag \
+            --title "$TAG" \
+            --generate-notes \
+            $prerelease

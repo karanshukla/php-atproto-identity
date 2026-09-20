@@ -56,6 +56,43 @@ checked-in fixtures, which only prove the code still does what it did.
 Name tests as sentences about behaviour (`testFallsBackToAStaleDocumentWhenTheFetchFails`)
 rather than after the method under test.
 
+## Cutting a release
+
+Push a tag. `.github/workflows/release.yml` re-runs the full CI gate against
+that commit, checks the tag is actually on `main`, and publishes the GitHub
+release.
+
+```bash
+git switch main && git pull
+git tag -a v0.2.0 -m "v0.2.0"
+git push origin v0.2.0
+```
+
+`composer.json` carries no `version` field on purpose. Packagist reads the tag,
+so the tag is the only place a version number exists and there is nothing to
+keep in sync. A tag with a suffix (`v0.2.0-beta.1`) is published as a
+prerelease, which is how Composer already reads that string.
+
+The notes are generated from the PRs merged since the previous tag, grouped by
+label. `.github/release.yml` holds the label to heading mapping:
+
+| Label | Heading |
+|---|---|
+| `breaking` | Breaking changes |
+| `security` | Security |
+| `enhancement` | Features |
+| `bug` | Fixes |
+| `documentation`, `ci` | Documentation and tooling |
+| `dependencies` | Dependencies |
+| (none) | Other changes |
+
+So the changelog is only as good as the labels. Label the PR when you open it,
+not at release time. `changelog-ignore` drops a PR from the notes entirely.
+
+The one thing this does not do is write prose. Generated notes are a list of PR
+titles, which is enough for a patch release and not enough for a breaking one.
+Edit the release body by hand when the change needs explaining.
+
 ## Scope
 
 This package resolves DIDs and reads the keys they publish. That's it.

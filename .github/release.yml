@@ -1,0 +1,38 @@
+# Categories for the notes GitHub generates when a release is cut. Entries are
+# PRs, grouped by label, and the first matching category wins, so order here is
+# priority order. A PR with no label lands in "Other changes", which is the
+# signal to go label it.
+changelog:
+  exclude:
+    labels:
+      - changelog-ignore
+
+  categories:
+    - title: Breaking changes
+      labels:
+        - breaking
+
+    - title: Security
+      labels:
+        - security
+
+    - title: Features
+      labels:
+        - enhancement
+
+    - title: Fixes
+      labels:
+        - bug
+
+    - title: Documentation and tooling
+      labels:
+        - documentation
+        - ci
+
+    - title: Dependencies
+      labels:
+        - dependencies
+
+    - title: Other changes
+      labels:
+        - "*"
