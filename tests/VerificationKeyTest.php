@@ -9,6 +9,7 @@ use KaranShukla\PhpAtprotoIdentity\Tests\Stub\TestKey;
 use KaranShukla\PhpAtprotoIdentity\VerificationKey;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 /**
  * @internal
@@ -46,10 +47,10 @@ final class VerificationKeyTest extends TestCase
         $key = $testKey->verificationKey();
         $point = $key->compressedPoint;
 
-        $fallback = new \ReflectionMethod($key, 'viaModularSquareRoot')
+        $fallback = new ReflectionMethod($key, 'viaModularSquareRoot')
             ->invoke(null, $key->curve, \ord($point[0]), substr($point, 1));
 
-        $viaOpenssl = new \ReflectionMethod($key, 'viaOpenssl')
+        $viaOpenssl = new ReflectionMethod($key, 'viaOpenssl')
             ->invoke(null, $key->curve, $point);
 
         self::assertSame($viaOpenssl, $fallback);
@@ -80,7 +81,7 @@ final class VerificationKeyTest extends TestCase
         $this->expectException(IdentityException::class);
         $this->expectExceptionMessage('does not lie on secp256k1');
 
-        new \ReflectionMethod($key, 'viaModularSquareRoot')
+        new ReflectionMethod($key, 'viaModularSquareRoot')
             ->invoke(null, $key->curve, 0x02, substr($key->compressedPoint, 1));
     }
 

@@ -6,6 +6,7 @@ namespace KaranShukla\PhpAtprotoIdentity;
 
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
+use Throwable;
 
 /**
  * Resolves did:plc via a PLC directory and did:web via the domain's
@@ -45,7 +46,7 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
 
         try {
             $document = $this->fetch($did);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // A directory outage should not take a service down with it, so a
             // document that is merely stale is still better than nothing.
             if ($cached !== null && $cached['age'] < $this->maxAge) {

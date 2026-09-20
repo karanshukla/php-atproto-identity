@@ -8,6 +8,7 @@ use GuzzleHttp\Psr7\Response;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Throwable;
 
 /**
  * Serves a scripted sequence of responses and records what was asked for.
@@ -22,7 +23,7 @@ final class StubHttpClient implements ClientInterface
     /** @var list<string> every URL requested, in order */
     public array $urls = [];
 
-    /** @param list<ResponseInterface|\Throwable> $responses served in order, the last one repeating */
+    /** @param list<ResponseInterface|Throwable> $responses served in order, the last one repeating */
     public function __construct(
         private readonly array $responses,
     ) {}
@@ -37,7 +38,7 @@ final class StubHttpClient implements ClientInterface
         $this->urls[] = (string) $request->getUri();
         $response = $this->responses[min(\count($this->urls) - 1, \count($this->responses) - 1)];
 
-        if ($response instanceof \Throwable) {
+        if ($response instanceof Throwable) {
             throw $response;
         }
 

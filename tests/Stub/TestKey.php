@@ -7,6 +7,8 @@ namespace KaranShukla\PhpAtprotoIdentity\Tests\Stub;
 use Brick\Math\BigInteger;
 use KaranShukla\PhpAtprotoIdentity\DidKey;
 use KaranShukla\PhpAtprotoIdentity\VerificationKey;
+use OpenSSLAsymmetricKey;
+use RuntimeException;
 
 /**
  * A throwaway signing key, published the way a DID document publishes one.
@@ -22,7 +24,7 @@ final readonly class TestKey
     private const string ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
     private function __construct(
-        private \OpenSSLAsymmetricKey $privateKey,
+        private OpenSSLAsymmetricKey $privateKey,
         public string $multibase,
         /** The PEM OpenSSL itself exports for this key -- the answer we must reproduce. */
         public string $publicPem,
@@ -49,7 +51,7 @@ final readonly class TestKey
         if (!openssl_sign($message, $signature, $this->privateKey, \OPENSSL_ALGO_SHA256)
             || !\is_string($signature)
         ) {
-            throw new \RuntimeException('Could not sign with the generated key');
+            throw new RuntimeException('Could not sign with the generated key');
         }
 
         return $signature;
@@ -88,13 +90,13 @@ final readonly class TestKey
         ]);
 
         if ($key === false) {
-            throw new \RuntimeException("Could not generate a {$curve} key");
+            throw new RuntimeException("Could not generate a {$curve} key");
         }
 
         $details = openssl_pkey_get_details($key);
 
         if ($details === false) {
-            throw new \RuntimeException('Could not read the generated key');
+            throw new RuntimeException('Could not read the generated key');
         }
 
         /** @var array{x: string, y: string} $point */

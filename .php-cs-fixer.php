@@ -54,6 +54,11 @@ return (new PhpCsFixer\Config())
         'class_definition' => false,
         'php_unit_test_class_requires_covers' => false,
         'fully_qualified_strict_types' => false,
+        'global_namespace_import' => [
+            'import_classes' => true,
+            'import_constants' => false,
+            'import_functions' => false,
+        ],
         'php_unit_strict' => false,
         'final_internal_class' => false,
         'single_line_throw' => false,

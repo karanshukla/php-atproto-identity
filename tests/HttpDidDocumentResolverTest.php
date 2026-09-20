@@ -11,6 +11,7 @@ use KaranShukla\PhpAtprotoIdentity\Tests\Stub\StubDidDocumentCache;
 use KaranShukla\PhpAtprotoIdentity\Tests\Stub\StubHttpClient;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientInterface;
+use RuntimeException;
 
 /**
  * @internal
@@ -120,7 +121,7 @@ final class HttpDidDocumentResolverTest extends TestCase
 
     public function testFallsBackToAStaleDocumentWhenTheFetchFails(): void
     {
-        $http = new StubHttpClient([new \RuntimeException('plc.directory is down')]);
+        $http = new StubHttpClient([new RuntimeException('plc.directory is down')]);
         $cache = new StubDidDocumentCache();
         $cache->seed(self::DID, ['id' => 'cached'], age: 7200);
 
@@ -132,7 +133,7 @@ final class HttpDidDocumentResolverTest extends TestCase
 
     public function testGivesUpWhenTheFetchFailsAndTheCachedDocumentIsPastMaxAge(): void
     {
-        $http = new StubHttpClient([new \RuntimeException('plc.directory is down')]);
+        $http = new StubHttpClient([new RuntimeException('plc.directory is down')]);
         $cache = new StubDidDocumentCache();
         $cache->seed(self::DID, ['id' => 'cached'], age: 172800);
 
