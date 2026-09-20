@@ -7,9 +7,6 @@ namespace KaranShukla\PhpAtprotoIdentity\Encoding;
 use KaranShukla\PhpAtprotoIdentity\IdentityException;
 
 /**
- * The multibase envelope: a leading character naming the base the rest of the
- * string is written in.
- *
  * Only base58btc (`z`) is understood, because that is the one ATProto
  * publishes keys in.
  *
@@ -18,16 +15,8 @@ use KaranShukla\PhpAtprotoIdentity\IdentityException;
 final class Multibase
 {
     /**
-     * base58 decoding is quadratic in the length of its input, and the only
-     * implementation that is not slow about it needs ext-gmp, which this
-     * package does not require and a stock php image does not have. A
-     * multibase string arrives inside a DID document, which for did:web is
-     * written by whoever the DID names, so its length is theirs to choose and
-     * a long one is CPU spent on their say-so.
-     *
-     * A multicodec-prefixed compressed point is 35 bytes, which is 48
-     * base58btc characters and the prefix. This leaves several times that in
-     * headroom and still bounds the work at a few microseconds.
+     * base58 decoding is quadratic in the length of its input without
+     * ext-gmp, which this package does not require.
      *
      * @see \KaranShukla\PhpAtprotoIdentity\Tests\Encoding\MultibaseTest::testRefusesAStringTooLongToBeAKey()
      */

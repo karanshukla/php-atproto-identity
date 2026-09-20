@@ -52,12 +52,23 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
     private const int HTTPS_PORT = 443;
 
     /**
+     * A name somebody had to register, as opposed to one that only means
+     * something inside this network.
+     *
+     * @see self::checkHostIsAPublicDomain()
+     */
+    private const string PUBLIC_DOMAIN = '/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9])?$/i';
+
+    /**
      * @param list<string> $allowedHosts the only hosts this resolver may
      *                                   fetch from, besides the PLC
-     *                                   directory's own; empty means any.
-     *                                   An entry may pin a port
-     *                                   (`pds.example.com:8443`); one that
-     *                                   does not means port 443
+     *                                   directory's own. An entry may pin a
+     *                                   port (`pds.example.com:8443`); one
+     *                                   that does not means port 443. Empty
+     *                                   means any public domain, which is
+     *                                   also why naming a host here is how
+     *                                   you reach one that is not
+     *                                   (`localhost:3000`)
      */
     public function __construct(
         private ClientInterface $httpClient,
@@ -195,40 +206,82 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
     }
 
     /**
-     * A did:web names the host its document is fetched from, so a caller
-     * resolving DIDs it has no reason to trust can hold that host to a list
-     * rather than to a hostname's grammar.
+     * Whether this resolver is willing to address the host a DID picked out.
+     *
+     * Two rules, and which one applies depends on whether the caller named a
+     * list. Naming one is the stronger statement, so it wins outright: with
+     * `allowedHosts` set, exactly those authorities are fetched and nothing
+     * else is, whatever it looks like. That is also how you get a host the
+     * default rule below would refuse -- `allowedHosts: ['localhost:3000']`
+     * is a caller saying they meant it, which is the one thing a blanket
+     * refusal cannot express.
      *
      * An entry is a host, optionally with a port. Without one it means 443,
      * rather than any port: once a host is on the list, a DID that picks the
      * port too would otherwise reach whatever else that machine happens to be
      * running, which is the thing the list was set to prevent.
      *
-     * The configured PLC directory is always allowed without being listed:
-     * it is the caller's own configuration rather than anything a DID chose,
-     * and leaving it out would break did:plc for everyone who sets the list.
+     * Without a list, the default is that a did:web has to name a public
+     * domain. @atproto/identity does not check this, but it does not have to:
+     * it ships an SSRF-protected fetch and this package takes whatever PSR-18
+     * client it is handed, which for most callers is a stock one that will
+     * dial anything. So the refusal lives here instead.
      *
-     * This bounds where a request is addressed, not where it ends up. A
-     * client that follows redirects can still be sent elsewhere by an
-     * allowed host, which is the HTTP client's business to refuse.
+     * The configured PLC directory is exempt from both rules. It is the
+     * caller's own configuration rather than anything a DID chose, and a
+     * local development directory is a real thing to point at.
+     *
+     * None of this bounds where a request ends up, only where it is
+     * addressed. A public name can still resolve to a private address, and an
+     * allowed host can still answer with a 302, both of which are the HTTP
+     * client's business to refuse.
      *
      * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesAHostThatIsNotOnTheAllowList()
      * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesAnAllowedHostOnAPortThatWasNotListed()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesAHostThatIsNotAPublicDomain()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testFetchesFromALocalHostThatWasNamedOnTheAllowList()
      */
     private function checkHostIsAllowed(string $url): void
     {
-        if ($this->allowedHosts === []) {
+        $authority = self::authorityOfUrl($url);
+
+        if ($authority === self::authorityOfUrl($this->plcDirectory)) {
             return;
         }
 
-        $authority = self::authorityOfUrl($url);
-        $allowed = [
-            ...array_map(self::authorityOfEntry(...), $this->allowedHosts),
-            self::authorityOfUrl($this->plcDirectory),
-        ];
+        if ($this->allowedHosts !== []) {
+            if (!\in_array($authority, array_map(self::authorityOfEntry(...), $this->allowedHosts), true)) {
+                throw new IdentityException("DID resolution is not allowed to fetch from {$authority}");
+            }
 
-        if (!\in_array($authority, $allowed, true)) {
-            throw new IdentityException("DID resolution is not allowed to fetch from {$authority}");
+            return;
+        }
+
+        self::checkHostIsAPublicDomain($url, $authority);
+    }
+
+    /**
+     * At least one dot, and a last label that begins with a letter. Between
+     * them those refuse a literal IP address in any notation (`127.0.0.1`,
+     * `0x7f.0.0.1`, `2130706433`) and a single-label host (`localhost`, a
+     * container name, a Kubernetes service), which are the names that point a
+     * fetch back inside the network rather than at a domain somebody had to
+     * register. A punycode label passes, so an IDN domain resolves.
+     *
+     * A blunt instrument, and knowingly so: it does nothing about a public
+     * name with a private A record, and `metadata.google.internal` sails
+     * through it. It is here to catch the shape a mistake takes, not an
+     * attacker who has read this method.
+     */
+    private static function checkHostIsAPublicDomain(string $url, string $authority): void
+    {
+        $host = (string) parse_url($url, \PHP_URL_HOST);
+
+        if (preg_match(self::PUBLIC_DOMAIN, $host) !== 1) {
+            throw new IdentityException(
+                "DID resolution will not fetch from {$authority}, which is not a public domain; "
+                . 'name it in allowedHosts if that is what you meant',
+            );
         }
     }
 

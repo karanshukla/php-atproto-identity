@@ -9,6 +9,7 @@ use KaranShukla\PhpAtprotoIdentity\IdentityException;
 use KaranShukla\PhpAtprotoIdentity\Resolution\HttpDidDocumentResolver;
 use KaranShukla\PhpAtprotoIdentity\Tests\Stub\StubDidDocumentCache;
 use KaranShukla\PhpAtprotoIdentity\Tests\Stub\StubHttpClient;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientInterface;
 use RuntimeException;
@@ -239,6 +240,73 @@ final class HttpDidDocumentResolverTest extends TestCase
         self::resolver($http, allowedHosts: ['feed.test:8443'])->resolve($did);
 
         self::assertSame(['https://feed.test:8443/.well-known/did.json'], $http->urls);
+    }
+
+    /**
+     * With no list set, a did:web has to name a domain somebody registered.
+     * Not because these bend the URL (they do not) but because this package
+     * takes whatever PSR-18 client it is handed, and a stock one will dial
+     * any of them.
+     *
+     * @param non-empty-string $did
+     */
+    #[DataProvider('provideRefusesAHostThatIsNotAPublicDomainCases')]
+    public function testRefusesAHostThatIsNotAPublicDomain(string $did): void
+    {
+        $http = new StubHttpClient([]);
+
+        $this->expectException(IdentityException::class);
+        $this->expectExceptionMessage('not a public domain');
+
+        try {
+            self::resolver($http)->resolve($did);
+        } finally {
+            self::assertSame([], $http->urls, 'the request must not be sent at all');
+        }
+    }
+
+    /**
+     * @return iterable<string, array{non-empty-string}>
+     */
+    public static function provideRefusesAHostThatIsNotAPublicDomainCases(): iterable
+    {
+        yield 'loopback by name' => ['did:web:localhost'];
+        yield 'loopback by address' => ['did:web:127.0.0.1'];
+        yield 'the cloud metadata address' => ['did:web:169.254.169.254'];
+        yield 'an address written in hex' => ['did:web:0x7f.0.0.1'];
+        yield 'an address written as one integer' => ['did:web:2130706433'];
+        yield 'a container or service name' => ['did:web:redis'];
+        yield 'an internal host with a port' => ['did:web:redis%3A6379'];
+        yield 'a numeric tld' => ['did:web:feed.123'];
+    }
+
+    /**
+     * The escape hatch, and the reason the rule above is a default rather
+     * than a prohibition. @atproto/identity goes further and special-cases
+     * localhost to http; this only asks that you say so.
+     */
+    public function testFetchesFromALocalHostThatWasNamedOnTheAllowList(): void
+    {
+        $did = 'did:web:localhost%3A3000';
+        $http = new StubHttpClient([StubHttpClient::json(self::body($did, 'fetched'))]);
+
+        self::resolver($http, allowedHosts: ['localhost:3000'])->resolve($did);
+
+        self::assertSame(['https://localhost:3000/.well-known/did.json'], $http->urls);
+    }
+
+    /** A development PLC directory is a real thing to point at. */
+    public function testReachesAPlcDirectoryThatIsNotAPublicDomain(): void
+    {
+        $http = new StubHttpClient([StubHttpClient::json(self::body(self::DID, 'fetched'))]);
+
+        new HttpDidDocumentResolver(
+            httpClient: $http,
+            requestFactory: new HttpFactory(),
+            plcDirectory: 'http://localhost:2582',
+        )->resolve(self::DID);
+
+        self::assertSame(['http://localhost:2582/' . self::DID], $http->urls);
     }
 
     /**

@@ -22,19 +22,19 @@ final class DidDocumentUrl
     private const string WEB_PREFIX = 'did:web:';
 
     /**
-     * A registrable domain name with an optional port, which is all a did:web
-     * identifier decodes to. Deliberately narrow: whatever this lets through
-     * is a character the caller gets to place in a URL this process fetches.
+     * A hostname with an optional port, which is all a did:web identifier
+     * decodes to. Deliberately narrow: whatever this lets through is a
+     * character the caller gets to place in a URL this process fetches.
      *
-     * At least one dot is required and the last label has to begin with a
-     * letter, which between them refuse a literal IP address (`127.0.0.1`,
-     * `169.254.169.254`, `0x7f.0.0.1`) and a single-label host (`localhost`,
-     * a container name, a Kubernetes service). Those are the shapes that
-     * point a fetch back inside the network rather than at a domain someone
-     * had to register, and none of them is a did:web anyone publishes. A
-     * punycode label still passes, so an IDN domain resolves.
+     * This is a grammar, and it is not negotiable, because what it refuses is
+     * an identifier that would change the shape of the URL rather than the
+     * host inside it. Whether a host it does let through is one worth
+     * fetching from is a separate question and a policy rather than a
+     * grammar, so it is answered where policy lives:
+     * {@see \KaranShukla\PhpAtprotoIdentity\Resolution\HttpDidDocumentResolver::checkHostIsAllowed()}
+     * refuses a host that is not a public domain unless the caller named it.
      */
-    private const string HOST = '/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9])?(?::\d{1,5})?$/i';
+    private const string HOST = '/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/i';
 
     /**
      * A did:plc identifier is base32, but the format has changed once

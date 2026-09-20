@@ -59,7 +59,7 @@ without any configuration:
 | | |
 |---|---|
 | **The URL cannot be bent** | A `did:web` identifier is held to a domain name with an optional port, and a `did:plc` identifier cannot escape the directory it is appended to. Percent-encoding is decoded before that check, not after, so `did:web:trusted.test%40evil.test` is refused rather than fetched from `evil.test`. |
-| **The host has to be a registered domain** | At least one dot, and a last label that begins with a letter. That refuses `did:web:localhost`, `did:web:127.0.0.1`, `did:web:169.254.169.254` and a bare container or service name. A punycode label still passes, so IDN domains resolve. |
+| **The host has to be a public domain** | At least one dot, and a last label that begins with a letter. That refuses `did:web:localhost`, `did:web:127.0.0.1` and a bare container or service name. A punycode label passes, so IDN domains resolve. This one is a default rather than a prohibition: see below for how to ask for a host it refuses. |
 | **The document has to claim the DID** | A document whose `id` is not the DID it was fetched for is refused, so a `did:web` host cannot publish a document impersonating somebody else's DID. |
 | **Untrusted input is bounded** | A response body past 256 KiB is refused rather than parsed, and a `publicKeyMultibase` longer than any key could be is refused rather than decoded. |
 
@@ -77,8 +77,28 @@ Nothing off that list is fetched, and the request is refused before it is
 sent. An entry without a port means port 443, so listing a host does not also
 hand out whatever else that machine is running; write the port when you mean
 a different one. The PLC directory you configured is always reachable without
-being listed, so `did:plc` keeps working. An empty list (the default) allows
-any host.
+being listed, so `did:plc` keeps working.
+
+Naming a list is also how you reach a host the public-domain rule would
+otherwise refuse, which is what you want when the thing you are resolving is
+a PDS on your own machine:
+
+```php
+$resolver = new HttpDidDocumentResolver(
+    httpClient: $client,
+    requestFactory: $factory,
+    plcDirectory: 'http://localhost:2582',
+    allowedHosts: ['localhost:3000'],
+);
+
+$resolver->resolve('did:web:localhost%3A3000');
+```
+
+The rule is a default because this package takes whatever PSR-18 client you
+hand it, and a stock one will dial anything. `@atproto/identity` does not need
+the rule, because it ships an SSRF-protected fetch of its own; it goes the
+other way and special-cases `localhost` down to plain HTTP. Here you just have
+to say you meant it.
 
 What none of this can bound is where a request *ends up*. A name with a dot in
 it can still resolve to an internal address, whether by DNS rebinding, a
@@ -91,9 +111,10 @@ your default one, and turn redirect-following off.
 ## Reading a published key
 
 ```php
-use KaranShukla\PhpAtprotoIdentity\Key\DidKey;
+use KaranShukla\PhpAtprotoIdentity\Key\SigningKeys;
 
-$key = DidKey::fromMultibase($document['verificationMethod'][0]['publicKeyMultibase']);
+$keys = SigningKeys::atproto($document);   // every #atproto key, in order
+$key = $keys[0];
 
 $key->curve;        // 'secp256k1'
 $key->algorithm();  // 'ES256K' — the JWS alg a token signed by it must declare
@@ -101,7 +122,24 @@ $key->pem();        // a PEM any JWT library or openssl_verify() will accept
 $key->der();        // the same key as a DER SubjectPublicKeyInfo
 ```
 
-`DidKey::fromDidKey()` takes the `did:key:z...` form as well.
+`SigningKeys::atproto()` is doing more than array access, and it is worth
+saying what. A DID document is a list of keys and only some of them sign
+repos: a `did:plc` document publishes a rotation key too, and that one signs
+operations on the identity rather than anything you are verifying. So the
+`#atproto` ones are picked out, and each is checked to belong to the document's
+own subject. The obvious version of that check is
+`str_ends_with($method['id'], '#atproto')`, which accepts a method whose id
+reads `did:plc:somebodyelse#atproto` out of a document you resolved for
+someone else entirely.
+
+A list comes back rather than one key, because a document may publish more
+than one and during a rotation the one that verifies a given signature may not
+be the one listed first. Empty means the document publishes no ATProto signing
+key at all, which a caller looping over the result rejects by doing nothing.
+
+If you already have a key in hand, `DidKey::fromMultibase()` takes the
+`publicKeyMultibase` string and `DidKey::fromDidKey()` takes the
+`did:key:z...` form.
 
 ATProto publishes keys as a compressed point — an X coordinate and one bit of
 Y — so `pem()` has to recover Y by taking a modular square root in the curve's
@@ -119,20 +157,13 @@ whatever JWT library you already use. The shape is:
 ```php
 $document = $resolver->resolve($issuerDid);
 
-foreach ($document['verificationMethod'] ?? [] as $method) {
-    if (!str_ends_with($method['id'] ?? '', '#atproto')) {
-        continue;
-    }
-
-    $key = DidKey::fromMultibase($method['publicKeyMultibase']);
-
+foreach (SigningKeys::atproto($document) as $key) {
     // ... hand $key->pem() and $key->algorithm() to your verifier
 }
 ```
 
-Try every `#atproto` method rather than just the first: a DID document may
-publish more than one, and during a key rotation the one you want may not be
-the one listed first. If verification still fails, resolve again with
+Try every key it hands back rather than stopping at the first, for the
+rotation reason above. If none of them verifies, resolve again with
 `forceRefresh: true` before rejecting the token — that is the one failure a
 fresher document can fix.
 
