@@ -18,6 +18,10 @@ final class Multibase
      * base58 decoding is quadratic in the length of its input without
      * ext-gmp, which this package does not require.
      *
+     * 256 because a multicodec-prefixed compressed point is 35 bytes, which
+     * is 48 base58btc characters and the prefix. Anything past that is not a
+     * key, and a caller does not get to spend our CPU proving it.
+     *
      * @see \KaranShukla\PhpAtprotoIdentity\Tests\Encoding\MultibaseTest::testRefusesAStringTooLongToBeAKey()
      */
     public const int MAX_LENGTH = 256;
