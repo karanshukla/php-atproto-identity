@@ -19,13 +19,13 @@ final class DidDocumentUrl
      * @see \KaranShukla\PhpAtprotoIdentity\Resolution\HttpDidDocumentResolver::checkHostIsAllowed()
      * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\DidDocumentUrlTest::testLeavesTheQuestionOfAPrivateHostToTheResolver()
      */
-    private const string HOST = '/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/i';
+    private const string HOST = '/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/iD';
 
     /**
      * The did:plc format has changed once already, so this rules out only
      * what would change the shape of the URL, not the alphabet or the length.
      */
-    private const string PLC_IDENTIFIER = '/^[a-zA-Z0-9._-]+$/';
+    private const string PLC_IDENTIFIER = '/^[a-zA-Z0-9._-]+$/D';
 
     private const int MAX_IDENTIFIER_LENGTH = 260;
 

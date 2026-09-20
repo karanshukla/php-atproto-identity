@@ -147,7 +147,8 @@ field. RFC 5480 allows a `SubjectPublicKeyInfo` to carry a compressed point, so
 the key is handed to OpenSSL exactly as published and comes back decompressed:
 the square root happens in C and the on-curve check comes free. A build whose
 OpenSSL declines falls back to the same arithmetic in PHP. Either way, a point
-that is not on the curve is rejected.
+that is not on the curve is rejected, and rejected when the key is built: a
+`VerificationKey` you are holding is one `pem()` will not throw on.
 
 ## Verifying a service auth token
 

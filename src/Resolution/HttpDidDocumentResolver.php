@@ -42,7 +42,7 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
     /**
      * @see self::checkHostIsAPublicDomain()
      */
-    private const string PUBLIC_DOMAIN = '/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9])?$/i';
+    private const string PUBLIC_DOMAIN = '/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9])?$/iD';
 
     /**
      * @param list<string> $allowedHosts the only hosts this resolver may
