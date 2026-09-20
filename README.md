@@ -4,7 +4,7 @@ Resolve an ATProto DID to its document, and turn the signing key that document
 publishes into something OpenSSL can verify with.
 
 That is the whole package. It is the layer `@atproto/identity` occupies in the
-TypeScript world, and nothing framework-specific lives in it — the HTTP client,
+TypeScript world, and nothing framework-specific lives in it: the HTTP client,
 the cache and the PSR interfaces are all yours to supply.
 
 ```bash
@@ -12,14 +12,14 @@ composer require karanshukla/php-atproto-identity
 ```
 
 Requires PHP 8.4 and `ext-openssl`, which ships enabled in virtually every PHP
-build. Nothing else — no bignum extension, no configuration.
+build. Nothing else: no bignum extension, no configuration.
 
 ## What it does
 
 | | |
 |---|---|
 | **DID methods** | `did:plc` (via a PLC directory) and `did:web` (via `.well-known/did.json`) |
-| **Key types** | `secp256k1` (ES256K) and P-256 (ES256) — the two ATProto signs repos with |
+| **Key types** | `secp256k1` (ES256K) and P-256 (ES256), the two ATProto signs repos with |
 | **Caching** | any PSR-6 pool, or your own `DidDocumentCache` |
 | **HTTP** | any PSR-18 client and PSR-17 request factory |
 
@@ -41,29 +41,22 @@ $resolver = new HttpDidDocumentResolver(
 $document = $resolver->resolve('did:plc:z72i7hdynmk6r22z27h6tvur');
 ```
 
-The resolver serves a cached document for an hour without touching the
-network, refetches it after that, and — if the directory is unreachable — keeps
-serving a stale one for up to a day rather than failing. Those two bounds match
-`@atproto/identity`'s `MemoryCache`, and both are constructor arguments. Pass
-`forceRefresh: true` to skip the cache, which is what you want after a
-signature fails to verify and you suspect a rotated key.
-
-Without a cache argument, nothing is cached at all.
+A cached document is served for an hour without touching the network, and a
+stale one for up to a day if the fetch fails. Both bounds are constructor
+arguments. `forceRefresh: true` skips the cache, which is what you want after a
+signature fails to verify and you suspect a rotated key. Without a cache
+argument, nothing is cached at all.
 
 ## Resolving a DID you do not trust
 
-A DID that arrives from outside (a token's issuer, a record's subject)
-decides which URL this library fetches, so four things hold by default,
-without any configuration:
+A DID that arrives from outside (a token's issuer, a record's subject) decides
+which URL this library fetches. By default the URL cannot be bent to another
+host or path, the host has to be a public domain, the document has to claim the
+DID it was fetched for, and the body is capped at 256 KiB.
 
-| | |
-|---|---|
-| **The URL cannot be bent** | A `did:web` identifier is held to a domain name with an optional port, and a `did:plc` identifier cannot escape the directory it is appended to. Percent-encoding is decoded before that check, not after, so `did:web:trusted.test%40evil.test` is refused rather than fetched from `evil.test`. |
-| **The host has to be a public domain** | At least one dot, and a last label that begins with a letter. That refuses `did:web:localhost`, `did:web:127.0.0.1` and a bare container or service name. A punycode label passes, so IDN domains resolve. This one is a default rather than a prohibition: see below for how to ask for a host it refuses. |
-| **The document has to claim the DID** | A document whose `id` is not the DID it was fetched for is refused, so a `did:web` host cannot publish a document impersonating somebody else's DID. |
-| **Untrusted input is bounded** | A response body past 256 KiB is refused rather than parsed, and a `publicKeyMultibase` longer than any key could be is refused rather than decoded. |
-
-If the DIDs you resolve come from a known set, name it:
+If the DIDs you resolve come from a known set, name it. Nothing off the list is
+fetched, and listing a host is also how you reach one the public-domain rule
+refuses, like `localhost:3000`:
 
 ```php
 $resolver = new HttpDidDocumentResolver(
@@ -73,40 +66,10 @@ $resolver = new HttpDidDocumentResolver(
 );
 ```
 
-Nothing off that list is fetched, and the request is refused before it is
-sent. An entry without a port means port 443, so listing a host does not also
-hand out whatever else that machine is running; write the port when you mean
-a different one. The PLC directory you configured is always reachable without
-being listed, so `did:plc` keeps working.
-
-Naming a list is also how you reach a host the public-domain rule would
-otherwise refuse, which is what you want when the thing you are resolving is
-a PDS on your own machine:
-
-```php
-$resolver = new HttpDidDocumentResolver(
-    httpClient: $client,
-    requestFactory: $factory,
-    plcDirectory: 'http://localhost:2582',
-    allowedHosts: ['localhost:3000'],
-);
-
-$resolver->resolve('did:web:localhost%3A3000');
-```
-
-The rule is a default because this package takes whatever PSR-18 client you
-hand it, and a stock one will dial anything. `@atproto/identity` does not need
-the rule, because it ships an SSRF-protected fetch of its own; it goes the
-other way and special-cases `localhost` down to plain HTTP. Here you just have
-to say you meant it.
-
-What none of this can bound is where a request *ends up*. A name with a dot in
-it can still resolve to an internal address, whether by DNS rebinding, a
-split-horizon resolver or a search domain, and an allowed host is free to
-answer with a 302 to a private one. Egress is the HTTP client's job, and the
-client is yours: for DIDs you have no reason to trust, hand this resolver a
-client with an egress proxy or a blocked private-address range rather than
-your default one, and turn redirect-following off.
+What this cannot bound is where a request *ends up*: DNS and redirects belong
+to the HTTP client, and the client is yours.
+[docs/untrusted-dids.md](docs/untrusted-dids.md) has the rules in full and what
+to ask of the client.
 
 ## Reading a published key
 
@@ -117,38 +80,20 @@ $keys = SigningKeys::atproto($document);   // every #atproto key, in order
 $key = $keys[0];
 
 $key->curve;        // 'secp256k1'
-$key->algorithm();  // 'ES256K' — the JWS alg a token signed by it must declare
+$key->algorithm();  // 'ES256K', the JWS alg a token signed by it must declare
 $key->pem();        // a PEM any JWT library or openssl_verify() will accept
 $key->der();        // the same key as a DER SubjectPublicKeyInfo
 ```
 
-`SigningKeys::atproto()` is doing more than array access, and it is worth
-saying what. A DID document is a list of keys and only some of them sign
-repos: a `did:plc` document publishes a rotation key too, and that one signs
-operations on the identity rather than anything you are verifying. So the
-`#atproto` ones are picked out, and each is checked to belong to the document's
-own subject. The obvious version of that check is
-`str_ends_with($method['id'], '#atproto')`, which accepts a method whose id
-reads `did:plc:somebodyelse#atproto` out of a document you resolved for
-someone else entirely.
-
-A list comes back rather than one key, because a document may publish more
-than one and during a rotation the one that verifies a given signature may not
-be the one listed first. Empty means the document publishes no ATProto signing
-key at all, which a caller looping over the result rejects by doing nothing.
+Only the `#atproto` keys that belong to the document's own subject come back,
+and a key that is not on its curve is never one of them. It is a list because
+a document may publish more than one, and during a rotation the one that
+verifies a given signature may not be listed first.
 
 If you already have a key in hand, `DidKey::fromMultibase()` takes the
 `publicKeyMultibase` string and `DidKey::fromDidKey()` takes the
-`did:key:z...` form.
-
-ATProto publishes keys as a compressed point — an X coordinate and one bit of
-Y — so `pem()` has to recover Y by taking a modular square root in the curve's
-field. RFC 5480 allows a `SubjectPublicKeyInfo` to carry a compressed point, so
-the key is handed to OpenSSL exactly as published and comes back decompressed:
-the square root happens in C and the on-curve check comes free. A build whose
-OpenSSL declines falls back to the same arithmetic in PHP. Either way, a point
-that is not on the curve is rejected, and rejected when the key is built: a
-`VerificationKey` you are holding is one `pem()` will not throw on.
+`did:key:z...` form. [docs/keys.md](docs/keys.md) covers what is checked and
+how a compressed point becomes a PEM.
 
 ## Verifying a service auth token
 
@@ -165,7 +110,7 @@ foreach (SigningKeys::atproto($document) as $key) {
 
 Try every key it hands back rather than stopping at the first, for the
 rotation reason above. If none of them verifies, resolve again with
-`forceRefresh: true` before rejecting the token — that is the one failure a
+`forceRefresh: true` before rejecting the token. That is the one failure a
 fresher document can fix.
 
 [libphpsky](https://github.com/aazsamir/libphpsky) wires this up into a full

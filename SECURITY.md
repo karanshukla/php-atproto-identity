@@ -50,8 +50,8 @@ So these are documented limits rather than vulnerabilities:
   serves a stale document rather than failing, by design and within a bound
   you configure.
 
-The README says how to hand this package a client that does bound those,
-under *Resolving a DID you do not trust*. If you think one of these is
+[docs/untrusted-dids.md](docs/untrusted-dids.md) says how to hand this
+package a client that does bound those. If you think one of these is
 exploitable in a way that configuration cannot fix, report it anyway and say
 why; the line above is a judgement, not a rule.
 
