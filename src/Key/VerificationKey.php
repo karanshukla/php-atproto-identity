@@ -115,7 +115,15 @@ final readonly class VerificationKey
      * The order matters for more than tidiness: the PHP path costs about 1.5ms
      * with ext-gmp or ext-bcmath loaded and about 1.5 *seconds* with neither,
      * where brick/math drops to a pure-PHP calculator. Stock php:cli images
-     * have neither.
+     * have neither, and .github/workflows/ci.yml has a `no-bignum-extensions`
+     * job that builds exactly that.
+     *
+     * No test pins this order, and one cannot: the two paths agree by design,
+     * so there is no output to assert on, and the difference between them is
+     * a duration, which is the one thing a test should not be asserting. Swap
+     * the two and the suite stays green while that job's build gets a
+     * thousand times slower. This paragraph is the only thing standing in the
+     * way, which is why it is still here when its neighbours are not.
      *
      * @return array{string, string} X and Y, each left-padded to 32 bytes
      */
@@ -145,16 +153,36 @@ final readonly class VerificationKey
      * {@see self::viaModularSquareRoot()}, which distinguishes them -- an
      * invalid point fails its on-curve check there and is rejected.
      *
+     * Leaves OpenSSL's error queue empty either way. The queue is global to
+     * the process and appended to, so a key refused here puts entries on it
+     * that nothing in this package reads and the caller did not cause. Left
+     * there, they surface against whatever the caller does with OpenSSL next.
+     *
+     * Draining on the way out rather than in also costs the caller any error
+     * they had pending, which is not a trade worth making but is the only one
+     * PHP offers: the queue cannot be read without consuming it, or restored
+     * once it has been.
+     *
      * @return array{string, string}|null
+     *
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\VerificationKeyTest::testLeavesNoOpensslErrorsBehindWhenItRejectsAKey()
      */
     private static function viaOpenssl(string $curve, string $compressedPoint): ?array
     {
-        // Drain anything an earlier call left in OpenSSL's error queue, so it
-        // cannot be mistaken for a failure of this one.
-        while (openssl_error_string() !== false) {
-            continue;
+        try {
+            return self::readWithOpenssl($curve, $compressedPoint);
+        } finally {
+            while (openssl_error_string() !== false) {
+                continue;
+            }
         }
+    }
 
+    /**
+     * @return array{string, string}|null
+     */
+    private static function readWithOpenssl(string $curve, string $compressedPoint): ?array
+    {
         $public = openssl_pkey_get_public(
             self::wrap(self::header($curve, 'compressed') . $compressedPoint),
         );

@@ -39,22 +39,23 @@ final class DidDocumentUrlTest extends TestCase
         );
     }
 
-    public function testDecodesAPercentEncodedDidWebHost(): void
+    public function testDecodesAPercentEncodedPortSeparator(): void
     {
-        // The port separator is the one character a did:web host has to
-        // encode, because a bare colon would read as a path.
         self::assertSame(
-            'https://localhost:3000/.well-known/did.json',
-            DidDocumentUrl::for('did:web:localhost%3A3000', HttpDidDocumentResolver::PLC_DIRECTORY),
+            'https://feed.test:3000/.well-known/did.json',
+            DidDocumentUrl::for('did:web:feed.test%3A3000', HttpDidDocumentResolver::PLC_DIRECTORY),
+        );
+    }
+
+    public function testAcceptsAPunycodeHost(): void
+    {
+        self::assertSame(
+            'https://xn--e1afmkfd.xn--p1ai/.well-known/did.json',
+            DidDocumentUrl::for('did:web:xn--e1afmkfd.xn--p1ai', HttpDidDocumentResolver::PLC_DIRECTORY),
         );
     }
 
     /**
-     * A DID arrives from outside -- a token's issuer field, a record's
-     * subject -- and every character of it ends up in a URL this process
-     * fetches, so an identifier that is not a plain hostname is refused
-     * before it can bend the URL somewhere else.
-     *
      * @param non-empty-string $did
      */
     #[DataProvider('provideRefusesAnIdentifierThatWouldBendTheUrlCases')]
@@ -70,19 +71,57 @@ final class DidDocumentUrlTest extends TestCase
      */
     public static function provideRefusesAnIdentifierThatWouldBendTheUrlCases(): iterable
     {
-        // https://trusted.test@evil.test/... reads as trusted.test and is
-        // fetched from evil.test. The rest are the same trick aimed at the
-        // path, the query and the fragment.
-        yield 'userinfo' => ['did:web:trusted.test%40evil.test'];
+        yield 'userinfo, which would read as one host and fetch another' => ['did:web:trusted.test%40evil.test'];
+
         yield 'path' => ['did:web:feed.test%2F..%2Fadmin'];
+
         yield 'query' => ['did:web:feed.test%3Fredirect%3Devil.test'];
+
         yield 'fragment' => ['did:web:feed.test%23'];
+
         yield 'a second host' => ['did:web:feed.test%20evil.test'];
+
         yield 'an empty host' => ['did:web:'];
+
         yield 'a hostname that is not one' => ['did:web:-feed.test'];
+
         yield 'an empty label' => ['did:web:feed..test'];
+
         yield 'a plc identifier with a path in it' => ['did:plc:requester/../../admin'];
+
         yield 'a plc identifier with a host in it' => ['did:plc:requester%40evil.test'];
+    }
+
+    /**
+     * @param non-empty-string $did
+     */
+    #[DataProvider('provideRefusesAnIdentifierLongerThanAnyRealOneCases')]
+    public function testRefusesAnIdentifierLongerThanAnyRealOne(string $did): void
+    {
+        $this->expectException(IdentityException::class);
+
+        DidDocumentUrl::for($did, HttpDidDocumentResolver::PLC_DIRECTORY);
+    }
+
+    /**
+     * @return iterable<string, array{non-empty-string}>
+     */
+    public static function provideRefusesAnIdentifierLongerThanAnyRealOneCases(): iterable
+    {
+        yield 'longer than any hostname' => ['did:web:' . str_repeat('a', 300) . '.test'];
+
+        yield 'longer than any plc identifier' => ['did:plc:' . str_repeat('a', 300)];
+    }
+
+    /**
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesAHostThatIsNotAPublicDomain()
+     */
+    public function testLeavesTheQuestionOfAPrivateHostToTheResolver(): void
+    {
+        self::assertSame(
+            'https://localhost:3000/.well-known/did.json',
+            DidDocumentUrl::for('did:web:localhost%3A3000', HttpDidDocumentResolver::PLC_DIRECTORY),
+        );
     }
 
     public function testRejectsADidWebWithAPath(): void

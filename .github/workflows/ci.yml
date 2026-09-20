@@ -57,6 +57,30 @@ jobs:
       - name: Audit dependencies
         run: composer audit --no-interaction
 
+  # composer.json accepts brick/math from 0.12 up to the next major, which is
+  # a wide range to promise on a library that does modular arithmetic. CI
+  # resolves the newest; this resolves the oldest, so both ends of the promise
+  # are a thing that ran rather than a thing that was asserted.
+  lowest-dependencies:
+    name: Oldest allowed dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: openssl, gmp, mbstring
+          coverage: none
+
+      - name: Install the lowest version of everything
+        run: composer update --prefer-lowest --prefer-stable --no-interaction --no-progress
+
+      - name: Test
+        run: composer phpunit
+
   # The package claims to need no bignum extension. brick/math silently falls
   # back to a pure-PHP calculator when none is loaded, so that claim is only
   # worth anything if it is actually exercised.

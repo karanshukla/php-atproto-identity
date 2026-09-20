@@ -134,6 +134,67 @@ final class VerificationKeyTest extends TestCase
         )->pem();
     }
 
+    /**
+     * OpenSSL's error queue is global to the process and appended to, so a
+     * key this package refuses puts entries on it that the caller did not
+     * cause and cannot explain. Left there, the next openssl_error_string()
+     * anywhere in the process reports them.
+     *
+     * @param non-empty-string $compressedPoint
+     */
+    #[DataProvider('provideLeavesNoOpensslErrorsBehindWhenItRejectsAKeyCases')]
+    public function testLeavesNoOpensslErrorsBehindWhenItRejectsAKey(string $compressedPoint): void
+    {
+        self::drainOpensslErrors();
+
+        try {
+            new VerificationKey(VerificationKey::CURVE_SECP256K1, $compressedPoint)->pem();
+        } catch (IdentityException) {
+            // The rejection is the point; what it leaves behind is the test.
+        }
+
+        self::assertSame(0, self::drainOpensslErrors());
+    }
+
+    /**
+     * @return iterable<string, array{non-empty-string}>
+     */
+    public static function provideLeavesNoOpensslErrorsBehindWhenItRejectsAKeyCases(): iterable
+    {
+        yield 'an x that is not on the curve' => [
+            "\x02" . str_pad(pack('N', 5), 32, "\x00", \STR_PAD_LEFT),
+        ];
+
+        yield 'an x outside the field' => [
+            "\x02" . str_repeat("\xff", 32),
+        ];
+    }
+
+    /** The same promise on the path where nothing went wrong. */
+    public function testLeavesNoOpensslErrorsBehindWhenItReadsAKey(): void
+    {
+        self::drainOpensslErrors();
+
+        TestKey::secp256k1()->verificationKey()->pem();
+
+        self::assertSame(0, self::drainOpensslErrors());
+    }
+
+    /**
+     * @return int how many entries were on the queue, which is the only way
+     *             to ask: reading it consumes it
+     */
+    private static function drainOpensslErrors(): int
+    {
+        $count = 0;
+
+        while (openssl_error_string() !== false) {
+            $count++;
+        }
+
+        return $count;
+    }
+
     /** X must be reduced mod p; the field prime itself is one past the end. */
     public function testRejectsAnXOutsideTheField(): void
     {

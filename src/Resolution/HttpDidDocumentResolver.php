@@ -9,18 +9,17 @@ use KaranShukla\PhpAtprotoIdentity\Resolution\Cache\DidDocumentCache;
 use KaranShukla\PhpAtprotoIdentity\Resolution\Cache\NullDidDocumentCache;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\StreamInterface;
 use Throwable;
 
 /**
- * Resolves did:plc via a PLC directory and did:web via the domain's
- * .well-known/did.json.
- *
  * The two freshness bounds match @atproto/identity's MemoryCache.
  *
  * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testServesAFreshCachedDocumentWithoutFetching()
  * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefetchesACachedDocumentPastTheStaleBound()
  * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testFallsBackToAStaleDocumentWhenTheFetchFails()
  * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testGivesUpWhenTheFetchFailsAndTheCachedDocumentIsPastMaxAge()
+ * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testDoesNotServeARefusedHostFromTheCache()
  */
 final readonly class HttpDidDocumentResolver implements DidDocumentResolver
 {
@@ -31,9 +30,30 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
     public const string PLC_DIRECTORY = 'https://plc.directory';
 
     /**
+     * Bounds what is decoded and held, not what crosses the wire: bounding
+     * the transfer is the HTTP client's job, the same way redirects are.
+     *
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesADocumentTooLargeToBeOne()
+     */
+    public const int MAX_DOCUMENT_BYTES = 262144;
+
+    private const int HTTPS_PORT = 443;
+
+    /**
+     * @see self::checkHostIsAPublicDomain()
+     */
+    private const string PUBLIC_DOMAIN = '/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9])?$/i';
+
+    /**
      * @param list<string> $allowedHosts the only hosts this resolver may
      *                                   fetch from, besides the PLC
-     *                                   directory's own; empty means any
+     *                                   directory's own. An entry may pin a
+     *                                   port (`pds.example.com:8443`); one
+     *                                   that does not means port 443. Empty
+     *                                   means any public domain, which is
+     *                                   also why naming a host here is how
+     *                                   you reach one that is not
+     *                                   (`localhost:3000`)
      */
     public function __construct(
         private ClientInterface $httpClient,
@@ -47,6 +67,10 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
 
     public function resolve(string $did, bool $forceRefresh = false): array
     {
+        $url = DidDocumentUrl::for($did, $this->plcDirectory);
+
+        $this->checkHostIsAllowed($url);
+
         $cached = $this->cache->get($did);
 
         if (!$forceRefresh && $cached !== null && $cached['age'] < $this->staleAfter) {
@@ -54,10 +78,8 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
         }
 
         try {
-            $document = $this->fetch($did);
+            $document = $this->fetch($did, $url);
         } catch (Throwable $e) {
-            // A directory outage should not take a service down with it, so a
-            // document that is merely stale is still better than nothing.
             if ($cached !== null && $cached['age'] < $this->maxAge) {
                 return $cached['document'];
             }
@@ -73,12 +95,8 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
     /**
      * @return array<string, mixed>
      */
-    private function fetch(string $did): array
+    private function fetch(string $did, string $url): array
     {
-        $url = DidDocumentUrl::for($did, $this->plcDirectory);
-
-        $this->checkHostIsAllowed($url);
-
         $response = $this->httpClient->sendRequest(
             $this->requestFactory->createRequest('GET', $url)
                 ->withHeader('Accept', 'application/json'),
@@ -88,51 +106,148 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
             throw new IdentityException("DID resolution returned HTTP {$response->getStatusCode()}");
         }
 
-        $document = json_decode((string) $response->getBody(), true);
+        $document = json_decode(self::body($response->getBody()), true);
 
-        if (!\is_array($document)) {
+        if (!self::isJsonObject($document)) {
             throw new IdentityException('DID document is not a JSON object');
         }
 
-        /** @var array<string, mixed> $document */
+        self::checkDocumentIsFor($did, $document);
+
         return $document;
     }
 
     /**
-     * A did:web names the host its document is fetched from, so a caller
-     * resolving DIDs it has no reason to trust can hold that host to a list
-     * rather than to a hostname's grammar.
+     * @phpstan-assert-if-true array<string, mixed> $decoded
      *
-     * The configured PLC directory is always allowed without being listed:
-     * it is the caller's own configuration rather than anything a DID chose,
-     * and leaving it out would break did:plc for everyone who sets the list.
-     *
-     * This bounds where a request is addressed, not where it ends up. A
-     * client that follows redirects can still be sent elsewhere by an
-     * allowed host, which is the HTTP client's business to refuse.
-     *
-     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesAHostThatIsNotOnTheAllowList()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRejectsABodyThatIsAJsonArray()
      */
-    private function checkHostIsAllowed(string $url): void
+    private static function isJsonObject(mixed $decoded): bool
     {
-        if ($this->allowedHosts === []) {
-            return;
-        }
+        return \is_array($decoded) && ($decoded === [] || !array_is_list($decoded));
+    }
 
-        $host = self::host($url);
-        $allowed = array_map(strtolower(...), [...$this->allowedHosts, self::host($this->plcDirectory)]);
+    /**
+     * DID Core requires a document's `id` to match the DID it was fetched
+     * for.
+     *
+     * @param array<string, mixed> $document
+     *
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesADocumentClaimingADifferentDid()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesADocumentWhoseIdDiffersOnlyInCase()
+     */
+    private static function checkDocumentIsFor(string $did, array $document): void
+    {
+        $id = $document['id'] ?? null;
 
-        if (!\in_array($host, $allowed, true)) {
-            throw new IdentityException("DID resolution is not allowed to fetch from {$host}");
+        if ($id !== $did) {
+            throw new IdentityException(\sprintf(
+                'DID document claims to be %s',
+                \is_string($id) ? $id : 'a document with no id',
+            ));
         }
     }
 
     /**
-     * The hostname a URL addresses, without its port: a port is not what the
-     * list is about, and demanding one in every entry only invites a typo.
+     * PSR-7's read() may return fewer bytes than asked for, so this goes
+     * round until the stream ends or the bound does.
+     *
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesADocumentTooLargeToBeOne()
      */
-    private static function host(string $url): string
+    private static function body(StreamInterface $stream): string
     {
-        return strtolower((string) parse_url($url, \PHP_URL_HOST));
+        $json = '';
+
+        while (\strlen($json) <= self::MAX_DOCUMENT_BYTES && !$stream->eof()) {
+            $chunk = $stream->read(self::MAX_DOCUMENT_BYTES + 1 - \strlen($json));
+
+            if ($chunk === '') {
+                break;
+            }
+
+            $json .= $chunk;
+        }
+
+        if (\strlen($json) > self::MAX_DOCUMENT_BYTES) {
+            throw new IdentityException(
+                \sprintf('DID document is larger than %d bytes', self::MAX_DOCUMENT_BYTES),
+            );
+        }
+
+        return $json;
+    }
+
+    /**
+     * Bounds where a request is addressed, not where it ends up: an allowed
+     * host can still answer with a 302.
+     *
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesAHostThatIsNotOnTheAllowList()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesAnAllowedHostOnAPortThatWasNotListed()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesAHostThatIsNotAPublicDomain()
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testFetchesFromALocalHostThatWasNamedOnTheAllowList()
+     */
+    private function checkHostIsAllowed(string $url): void
+    {
+        $authority = self::authorityOfUrl($url);
+
+        if ($authority === self::authorityOfUrl($this->plcDirectory)) {
+            return;
+        }
+
+        if ($this->allowedHosts !== []) {
+            if (!\in_array($authority, array_map(self::authorityOfEntry(...), $this->allowedHosts), true)) {
+                throw new IdentityException("DID resolution is not allowed to fetch from {$authority}");
+            }
+
+            return;
+        }
+
+        self::checkHostIsAPublicDomain($url, $authority);
+    }
+
+    /**
+     * A blunt instrument: a public name with a private A record passes, as
+     * does `metadata.google.internal`.
+     *
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefusesAHostThatIsNotAPublicDomain()
+     */
+    private static function checkHostIsAPublicDomain(string $url, string $authority): void
+    {
+        $host = (string) parse_url($url, \PHP_URL_HOST);
+
+        if (preg_match(self::PUBLIC_DOMAIN, $host) !== 1) {
+            throw new IdentityException(
+                "DID resolution will not fetch from {$authority}, which is not a public domain; "
+                . 'name it in allowedHosts if that is what you meant',
+            );
+        }
+    }
+
+    private static function authorityOfUrl(string $url): string
+    {
+        $host = strtolower((string) parse_url($url, \PHP_URL_HOST));
+        $port = parse_url($url, \PHP_URL_PORT);
+
+        if (!\is_int($port)) {
+            $port = parse_url($url, \PHP_URL_SCHEME) === 'http' ? 80 : self::HTTPS_PORT;
+        }
+
+        return "{$host}:{$port}";
+    }
+
+    /**
+     * Split on the last colon rather than parsed, because parse_url reads a
+     * leading `host:` as a scheme.
+     */
+    private static function authorityOfEntry(string $entry): string
+    {
+        $entry = strtolower(trim($entry));
+        $colon = strrpos($entry, ':');
+
+        if ($colon === false) {
+            return "{$entry}:" . self::HTTPS_PORT;
+        }
+
+        return $entry;
     }
 }
