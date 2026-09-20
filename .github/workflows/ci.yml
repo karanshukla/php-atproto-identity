@@ -73,7 +73,8 @@ jobs:
           coverage: none
 
       - name: Confirm neither extension is loaded
-        run: php -r "exit(extension_loaded('gmp') || extension_loaded('bcmath') ? 1 : 0);"
+        run: |
+          php -r "exit(extension_loaded('gmp') || extension_loaded('bcmath') ? 1 : 0);"
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress
