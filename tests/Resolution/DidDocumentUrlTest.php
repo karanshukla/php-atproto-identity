@@ -44,8 +44,17 @@ final class DidDocumentUrlTest extends TestCase
         // The port separator is the one character a did:web host has to
         // encode, because a bare colon would read as a path.
         self::assertSame(
-            'https://localhost:3000/.well-known/did.json',
-            DidDocumentUrl::for('did:web:localhost%3A3000', HttpDidDocumentResolver::PLC_DIRECTORY),
+            'https://feed.test:3000/.well-known/did.json',
+            DidDocumentUrl::for('did:web:feed.test%3A3000', HttpDidDocumentResolver::PLC_DIRECTORY),
+        );
+    }
+
+    /** An IDN did:web is punycode by the time it is an identifier. */
+    public function testAcceptsAPunycodeHost(): void
+    {
+        self::assertSame(
+            'https://xn--e1afmkfd.xn--p1ai/.well-known/did.json',
+            DidDocumentUrl::for('did:web:xn--e1afmkfd.xn--p1ai', HttpDidDocumentResolver::PLC_DIRECTORY),
         );
     }
 
@@ -83,6 +92,21 @@ final class DidDocumentUrlTest extends TestCase
         yield 'an empty label' => ['did:web:feed..test'];
         yield 'a plc identifier with a path in it' => ['did:plc:requester/../../admin'];
         yield 'a plc identifier with a host in it' => ['did:plc:requester%40evil.test'];
+
+        // Nothing below would bend the URL. They are refused because of where
+        // the URL points: a did:web is a domain someone had to register, and
+        // none of these is one. Egress is still the HTTP client's to bound,
+        // but these are the shapes that get there by accident.
+        yield 'loopback by name' => ['did:web:localhost'];
+        yield 'loopback by address' => ['did:web:127.0.0.1'];
+        yield 'the cloud metadata address' => ['did:web:169.254.169.254'];
+        yield 'an address written in hex' => ['did:web:0x7f.0.0.1'];
+        yield 'an address written as one integer' => ['did:web:2130706433'];
+        yield 'a container or service name' => ['did:web:redis'];
+        yield 'an internal single-label host with a port' => ['did:web:redis%3A6379'];
+        yield 'a numeric tld' => ['did:web:feed.123'];
+        yield 'an identifier longer than any hostname' => ['did:web:' . str_repeat('a', 300) . '.test'];
+        yield 'a plc identifier longer than any of them' => ['did:plc:' . str_repeat('a', 300)];
     }
 
     public function testRejectsADidWebWithAPath(): void

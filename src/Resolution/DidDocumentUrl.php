@@ -22,11 +22,19 @@ final class DidDocumentUrl
     private const string WEB_PREFIX = 'did:web:';
 
     /**
-     * A hostname with an optional port, which is all a did:web identifier
-     * decodes to. Deliberately narrow: whatever this lets through is a
-     * character the caller gets to place in a URL this process then fetches.
+     * A registrable domain name with an optional port, which is all a did:web
+     * identifier decodes to. Deliberately narrow: whatever this lets through
+     * is a character the caller gets to place in a URL this process fetches.
+     *
+     * At least one dot is required and the last label has to begin with a
+     * letter, which between them refuse a literal IP address (`127.0.0.1`,
+     * `169.254.169.254`, `0x7f.0.0.1`) and a single-label host (`localhost`,
+     * a container name, a Kubernetes service). Those are the shapes that
+     * point a fetch back inside the network rather than at a domain someone
+     * had to register, and none of them is a did:web anyone publishes. A
+     * punycode label still passes, so an IDN domain resolves.
      */
-    private const string HOST = '/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/i';
+    private const string HOST = '/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9])?(?::\d{1,5})?$/i';
 
     /**
      * A did:plc identifier is base32, but the format has changed once
@@ -34,6 +42,14 @@ final class DidDocumentUrl
      * it is appended to, rather than pinning the alphabet and the length.
      */
     private const string PLC_IDENTIFIER = '/^[a-zA-Z0-9._-]+$/';
+
+    /**
+     * Checked before the pattern is. A DNS name tops out at 253 characters
+     * and a PLC identifier at 24, so anything near this is already not one;
+     * the cap is here so an identifier of unbounded length never reaches a
+     * regex or a URL in the first place.
+     */
+    private const int MAX_IDENTIFIER_LENGTH = 260;
 
     public static function for(string $did, string $plcDirectory): string
     {
@@ -76,7 +92,7 @@ final class DidDocumentUrl
      */
     private static function check(string $did, string $identifier, string $pattern): void
     {
-        if (preg_match($pattern, $identifier) !== 1) {
+        if (\strlen($identifier) > self::MAX_IDENTIFIER_LENGTH || preg_match($pattern, $identifier) !== 1) {
             throw new IdentityException("Malformed DID identifier in {$did}");
         }
     }
