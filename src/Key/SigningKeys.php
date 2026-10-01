@@ -14,6 +14,14 @@ final class SigningKeys
     public const string ATPROTO_FRAGMENT = '#atproto';
 
     /**
+     * DID Core allows one method per id, so a document past a handful is
+     * not mid-rotation, and every method read is an OpenSSL parse.
+     *
+     * @see \KaranShukla\PhpAtprotoIdentity\Tests\Key\SigningKeysTest::testReadsNoMoreAtprotoMethodsThanTheBound()
+     */
+    public const int MAX_ATPROTO_METHODS = 8;
+
+    /**
      * @param array<string, mixed> $document as returned by
      *                                       {@see \KaranShukla\PhpAtprotoIdentity\Resolution\DidDocumentResolver::resolve()}
      *
@@ -43,6 +51,10 @@ final class SigningKeys
         foreach (self::verificationMethods($document) as $method) {
             if (!self::isAtprotoMethodOf($subject, $method)) {
                 continue;
+            }
+
+            if (\count($keys) + \count($failures) === self::MAX_ATPROTO_METHODS) {
+                break;
             }
 
             $multibase = $method['publicKeyMultibase'] ?? null;
