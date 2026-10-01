@@ -1,18 +1,31 @@
 # Cutting a release is pushing a tag. Everything else here is automatic: the
-# same QA that gates main runs again against the tagged commit, and if it is
-# green the release goes out with notes generated from the PRs merged since the
+# tag is checked against CHANGELOG.md, the same QA that gates main runs again
+# against the tagged commit, and if both are green the release goes out with notes generated from the PRs merged since the
 # last tag. Categories for those notes live in .github/release.yml.
 name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
 
 permissions:
   contents: read
 
 jobs:
+  # A malformed tag or a missing changelog section fails here, before anything
+  # is published.
+  verify-tag:
+    name: Verify the tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag and CHANGELOG
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: ./scripts/check-release.sh "$RELEASE_TAG"
+
   # Reuses ci.yml rather than copying its steps, so the release gate and the
   # main gate cannot drift apart.
   qa:
@@ -20,7 +33,7 @@ jobs:
 
   release:
     name: Publish
-    needs: qa
+    needs: [verify-tag, qa]
     runs-on: ubuntu-latest
 
     permissions:
