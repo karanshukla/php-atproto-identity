@@ -19,6 +19,7 @@ use Throwable;
  * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testRefetchesACachedDocumentPastTheStaleBound()
  * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testFallsBackToAStaleDocumentWhenTheFetchFails()
  * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testGivesUpWhenTheFetchFailsAndTheCachedDocumentIsPastMaxAge()
+ * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testDoesNotFallBackWhenTheDidIsGone()
  * @see \KaranShukla\PhpAtprotoIdentity\Tests\Resolution\HttpDidDocumentResolverTest::testDoesNotServeARefusedHostFromTheCache()
  */
 final readonly class HttpDidDocumentResolver implements DidDocumentResolver
@@ -87,20 +88,30 @@ final readonly class HttpDidDocumentResolver implements DidDocumentResolver
             throw new IdentityException("Could not resolve {$did}: {$e->getMessage()}", previous: $e);
         }
 
+        if ($document === null) {
+            throw new IdentityException("Could not resolve {$did}: it does not exist or has been deactivated");
+        }
+
         $this->cache->put($did, $document);
 
         return $document;
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<string, mixed>|null null when the host says the DID is
+     *                                   gone (404, or 410 for a tombstone),
+     *                                   which the stale cache must not cover
      */
-    private function fetch(string $did, string $url): array
+    private function fetch(string $did, string $url): ?array
     {
         $response = $this->httpClient->sendRequest(
             $this->requestFactory->createRequest('GET', $url)
                 ->withHeader('Accept', 'application/json'),
         );
+
+        if (\in_array($response->getStatusCode(), [404, 410], true)) {
+            return null;
+        }
 
         if ($response->getStatusCode() !== 200) {
             throw new IdentityException("DID resolution returned HTTP {$response->getStatusCode()}");
