@@ -42,7 +42,8 @@ $document = $resolver->resolve('did:plc:z72i7hdynmk6r22z27h6tvur');
 ```
 
 A cached document is served for an hour without touching the network, and a
-stale one for up to a day if the fetch fails. Both bounds are constructor
+stale one for up to a day if the fetch fails, unless the host answers 404 or
+410 for the DID. Both bounds are constructor
 arguments. `forceRefresh: true` skips the cache, which is what you want after a
 signature fails to verify and you suspect a rotated key. Without a cache
 argument, nothing is cached at all.

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- A DID whose host answers 404, or 410 for a tombstone, now fails to resolve rather than being served from the stale cache for up to `maxAge`. Other fetch failures still fall back.
 - `SigningKeys::atproto()` reads at most `MAX_ATPROTO_METHODS` (8) `#atproto` methods. A 256 KiB document padded with a few thousand of them took several seconds of OpenSSL parsing on every call.
 
 ## [0.2.0] - 2026-10-01
