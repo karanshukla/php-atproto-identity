@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- A DID whose host answers 404, or 410 for a tombstone, now fails to resolve rather than being served from the stale cache for up to `maxAge`. Other fetch failures still fall back.
+
 ## [0.2.0] - 2026-10-01
 
 ### Added

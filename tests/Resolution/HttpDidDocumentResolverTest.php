@@ -198,6 +198,29 @@ final class HttpDidDocumentResolverTest extends TestCase
         self::resolver($http, $cache)->resolve(self::DID);
     }
 
+    #[DataProvider('provideDoesNotFallBackWhenTheDidIsGoneCases')]
+    public function testDoesNotFallBackWhenTheDidIsGone(int $status): void
+    {
+        $http = new StubHttpClient([StubHttpClient::json('', $status)]);
+        $cache = new StubDidDocumentCache();
+        $cache->seed(self::DID, self::document(self::DID, 'cached'), age: 7200);
+
+        $this->expectException(IdentityException::class);
+        $this->expectExceptionMessage('does not exist or has been deactivated');
+
+        self::resolver($http, $cache)->resolve(self::DID);
+    }
+
+    /**
+     * @return iterable<string, array{int}>
+     */
+    public static function provideDoesNotFallBackWhenTheDidIsGoneCases(): iterable
+    {
+        yield 'not found' => [404];
+
+        yield 'tombstoned' => [410];
+    }
+
     public function testFetchesFromAHostOnTheAllowList(): void
     {
         $http = new StubHttpClient([StubHttpClient::json(self::body(self::WEB_DID, 'fetched'))]);
