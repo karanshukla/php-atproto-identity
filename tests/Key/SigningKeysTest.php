@@ -98,6 +98,17 @@ final class SigningKeysTest extends TestCase
         self::assertEquals($second->verificationKey(), $keys[1]);
     }
 
+    public function testReadsNoMoreAtprotoMethodsThanTheBound(): void
+    {
+        $method = ['id' => self::DID . '#atproto', 'publicKeyMultibase' => TestKey::secp256k1()->multibase];
+
+        $keys = SigningKeys::atproto(self::document(
+            array_fill(0, SigningKeys::MAX_ATPROTO_METHODS + 1, $method),
+        ));
+
+        self::assertCount(SigningKeys::MAX_ATPROTO_METHODS, $keys);
+    }
+
     public function testSkipsAnUnreadableKeyBesideAReadableOne(): void
     {
         $testKey = TestKey::secp256k1();

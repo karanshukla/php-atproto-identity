@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `SigningKeys::atproto()` reads at most `MAX_ATPROTO_METHODS` (8) `#atproto` methods. A 256 KiB document padded with a few thousand of them took several seconds of OpenSSL parsing on every call.
+
 ## [0.2.0] - 2026-10-01
 
 ### Added
