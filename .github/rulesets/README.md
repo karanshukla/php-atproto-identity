@@ -1,4 +1,4 @@
-# Branch rulesets
+# Rulesets
 
 The same protection kodamachi-feed runs, as API payloads. Apply both with:
 
@@ -7,6 +7,10 @@ for f in .github/rulesets/*.json; do
   gh api repos/karanshukla/php-atproto-identity/rulesets -X POST --input "$f"
 done
 ```
+
+`protect-tags.json` stops a `v*` tag from being moved or deleted once pushed.
+Packagist and Composer cache what a tag pointed at, so a re-pointed tag leaves
+installs disagreeing about what a version is.
 
 `protect-main.json` requires three status checks by name: `PHP 8.4`, `PHP 8.5`
 and `No gmp or bcmath`. Those are the rendered `name:` fields of the jobs in

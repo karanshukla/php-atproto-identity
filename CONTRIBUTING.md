@@ -62,11 +62,20 @@ Push a tag. `.github/workflows/release.yml` re-runs the full CI gate against
 that commit, checks the tag is actually on `main`, and publishes the GitHub
 release.
 
+Before tagging, move the `[Unreleased]` entries in `CHANGELOG.md` under a new
+`## [x.y.z] - YYYY-MM-DD` heading, fix up the compare links at the bottom, and
+merge that to `main`. The release workflow refuses a stable tag with no matching
+section; a prerelease tag is exempt.
+
 ```bash
 git switch main && git pull
+./scripts/check-release.sh v0.2.0
 git tag -a v0.2.0 -m "v0.2.0"
 git push origin v0.2.0
 ```
+
+Tags are immutable (`.github/rulesets/protect-tags.json`). A bad release is
+fixed with the next patch version, not by moving the tag.
 
 `composer.json` carries no `version` field on purpose. Packagist reads the tag,
 so the tag is the only place a version number exists and there is nothing to
